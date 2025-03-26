@@ -1,22 +1,26 @@
 from abc import ABC
+from typing import Generic, Literal, Optional, Union
+from pydantic import BaseModel, field_validator
+from validator.validate import isValid, T
 
-class mcp:
+
+class MCPMessage(BaseModel):
     """ mcp protocol """
+    role: str
+    type: str = "text"
+    content: Union[str, dict]
 
-    def __init__(self):
-        self.tools = {}
-
-
-
-    def register(self, name: str, func: function):
-        """ register """
+    @field_validator('type')
+    def is_valid(cls, v):
+        if not isValid(v):
+            raise ValueError(f"Invalid message type: {v}")
         
-        self.tools[name] = func
-        
+        return v
 
 
-    def unregister(self, name):
-        """ unregister """
+class MCPResponse(BaseModel, Generic[T]):
+    """ mcp response """
+    type: str
+    content: T
 
-        del self.tools[name]
 

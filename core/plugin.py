@@ -59,7 +59,6 @@ class PluginManager:
                 raise ValueError(f"도구 '{name}'은(는) 이미 존재합니다")
             if not callable(tool.run) or not hasattr(tool, "run"):
                 raise TypeError(f"도구 '{name}'은(는) 호출 가능한 객체여야 합니다")
-            self.mcp.register(name, tool.run)
         
         # update tool lists
         self.tools |= kwargs
@@ -73,7 +72,7 @@ class PluginManager:
                 raise ValueError(f"도구 '{name}'이(가) 존재하지 않습니다")
             
             del self.tools[name]
-            self.mcp.unregist(name)
+            # self.mcp.unregist(name)
         
 
     def showAll(self) -> list[str]:
@@ -82,7 +81,7 @@ class PluginManager:
 
     def run(self, **kwargs) -> None:
         if self.startServer is False:
-            self.mcp.run()
+            # self.mcp.run()
             self.startServer = True
 
         for name, data in kwargs.items():

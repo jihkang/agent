@@ -1,7 +1,7 @@
 from core import Plugin
 
 
-class Agent(Plugin):
+class ChatAgent(Plugin):
     """ Plugin """
     def __init__(self):
         """ initalize """
