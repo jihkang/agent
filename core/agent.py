@@ -14,11 +14,16 @@ class AgentResponse(BaseModel, Generic[T]):
 
 class Agent:
     history: List[AgentMessage]
+    log: List[AgentMessage]
 
     def __init__(self, llm: any, pm: PluginManager):
         self.llm = llm
         self.pm = pm
         self.history = []
+        self.log = []
+
+    def _is_function_call(self, msg: AgentMessage) -> bool:
+        return isinstance(msg.content, dict) and "name" in msg.content
 
     def run(self, problems: List[AgentMessage]) -> List[AgentResponse[Any]]:
         results = []
@@ -27,28 +32,31 @@ class Agent:
         if not problems:
             return [AgentResponse(response={"error": "No input messages."})]
 
-        messages = problems.copy()
-        llm_reply = self.llm.run(messages)
-        messages.append(llm_reply)
+        max_steps = 5  # 무한 루프 방지를 위한 안전장치
+        step = 0
+        while step < max_steps:
+            messages = problems.copy()
+            
+            llm_reply = self.llm.run(messages)
+            self.log.append(llm_reply)
+            self.history.append(llm_reply)
+            
+            if self._is_function_call(llm_reply):
+                fn_name = llm_reply.content["name"]
+                args = llm_reply.content.get("arguments", {})
 
-        # function_call 형식이면 plugin 실행
-        if isinstance(llm_reply.content, dict) and "name" in llm_reply.content:
-            function_name = llm_reply.content["name"]
-            arguments = llm_reply.content.get("arguments", {})
+                if not self.pm.can_handle(fn_name):
+                    results.append(AgentResponse(response=f"Plugin '{fn_name}'은(는) 지원되지 않습니다."))
+                    break
 
-            if self.pm.can_handle(function_name):
-                plugin_result = self.pm.run(function_name, **arguments)
-                messages.append(AgentMessage(role="function", content=plugin_result))
-
-                final_reply = self.llm.run(messages)
-                messages.append(final_reply)
-                results.append(AgentResponse[str](response=final_reply.content))
+                plugin_result = self.pm.run(fn_name, **args)
+                self.history.append(AgentMessage(role="function", content=plugin_result))
             else:
-                results.append(AgentResponse[str](response=f"Plugin '{function_name}'을 찾을 수 없습니다."))
-        else:
-            results.append(AgentResponse[str](response=llm_reply.content))
+                results.append(AgentResponse(response=llm_reply.content))
+                break  # 더 이상 function_call이 없으면 종료
+            self.history = messages
+            step += 1
 
-        self.history = messages
         return results
 
     def clear(self):

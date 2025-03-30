@@ -23,6 +23,10 @@ class PluginManager:
         self.loadPlugs()
 
 
+    def can_handle(self, name:str) -> bool:
+        return name in self.tools
+    
+    
     def loadPlugs(self) -> None:
         """ load plugins for use """
         
