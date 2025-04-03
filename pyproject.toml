@@ -9,6 +9,10 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.13"
 fastapi = "^0.115.12"
+torch = "^2.6.0"
+transformers = "^4.50.3"
+torchvision = "^0.21.0"
+torchaudio = "^2.6.0"
 
 
 [build-system]
