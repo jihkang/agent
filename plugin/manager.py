@@ -15,8 +15,7 @@ class PluginManager:
     def __init__(self, plugin: str = "plugin", maximum_load = 10):
         self. plugin_package = plugin
         self._loaded_plugins: OrderedDict[str, BaseAgent] = {}
-        self._maximum_agent = maximum_load
-
+        self._maximum_tools = maximum_load
 
     def dynamic_import(self, path: str) -> type[BaseAgent]:
         """
@@ -27,7 +26,6 @@ class PluginManager:
         module = importlib.import_module(module_path)
         cls = getattr(module, class_name)
         return cls
-
 
     def load_plugin(self, name: str) -> BaseAgent:
         if name in self._loaded_plugins:
@@ -42,14 +40,13 @@ class PluginManager:
         agent = self.dynamic_import(cls_path)
         instance = agent()
         
-        if len(self._loaded_plugins) >= self._max_plugins:
+        if len(self._loaded_plugins) >= self._maximum_tools:
             removed_name, _ = self._loaded_plugins.popitem(last=False)
             print(f"unload for cached data {removed_name}")
         
         instance = agent()
         self._loaded_plugins[name] = instance
-        return instance
-        
+        return instance        
 
     def run(self, name: str, input_data: Dict[str, Any]) -> Any:
         """
@@ -58,13 +55,11 @@ class PluginManager:
         plugin = self.load_plugin(name)
         return plugin.run(input_data)
 
-
     def list_loaded(self) -> list[str]:
         """
         현재 로딩된 플러그인 목록 반환
         """
         return list(self._loaded_plugins.keys())
-
 
     def unload(self, name: str) -> None:
         """
