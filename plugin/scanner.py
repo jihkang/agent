@@ -1,6 +1,5 @@
 import os
 import importlib.util
-from typing import Dict
 from plugin.base import BaseAgent
 from plugin.registry import register_plugin
 
