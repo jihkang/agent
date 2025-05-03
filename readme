@@ -1,0 +1,11 @@
+To start:
+
+first run init.py 
+
+It' will be changed to docker system
+
+
+0502 todo 
+[ ] ExecutionAgent의 결과 를 PlanningAgent 로 변경 
+[ ] Scheme 를 변경하고, 응답 의 결과를 MCPResponse로 변경 
+[ ] 시나리오를 이용해서 전체 동작 테스트 

@@ -1,0 +1,132 @@
+1. 사용자 입력
+    └─→ MCP Message Parser
+          └─→ MCPRequest 생성
+
+2. RouterAgent (중앙 이벤트 딜리게이터)
+    ├─→ ModeSelector
+    │    ├─ 판단: tool 기반 실행인지 plan 기반 실행인지 결정
+    │    ├─ "tool" 선택 시:
+    │    │    └─→ ToolSelector (LocalLLMSelector)
+    │    │          └─→ RAGSelector (plugin description 기반 유사도 검색)
+    │    │          └─→ 최종 tool_name 선택
+    │    │          └─→ PluginManager.run(tool_name)
+    │    │                 └─→ 선택된 Plugin 실행 (QA / Chat / Code / Tool ...)
+    │    │                        ├─→ LLM API / Tokenizer / GPU / 외부 기능 등 활용
+    │    │                 └─→ 결과 → Validator → MCPResponse
+    │
+    │    └─ "plan" 선택 시:
+    │         └─→ PlanningAgent
+    │               └─→ ExecutionPlan 생성 (예: [summarize, refine, respond])
+    │               └─→ step-by-step RouterAgent에 plan 전달
+    │                       └─ 각 step별 ToolSelector → PluginManager 실행
+    │                       └─ 실행 결과 → Validator → 다음 step or MCPResponse
+
+3. PluginManager (Plugin as Broker)
+    ├─ 내부적으로 BaseAgent들을 lazy-load / LRU 관리
+    ├─ Plugin 종류:
+    │    ├─ Plugin: QA (LLM 기반)
+    │    ├─ Plugin: Chat (LLM 기반)
+    │    ├─ Plugin: Code (PyTorch 모델 사용)
+    │    ├─ Plugin: Tool (기타 기능)
+    └─ 각 Plugin은 다음 자원을 활용할 수 있음:
+         ├─ LLM API
+         ├─ Tokenizer
+         ├─ Local GPU
+         └─ 외부 기능 (e.g., web API, DB 등)
+
+4. Validator (Result Checker)
+    └─ Plugin 실행 결과의 의미론적 적절성 검증
+    └─ Tiny LLM 또는 임베딩 기반 유사도 판단
+    └─ 유효하지 않으면 retry / fallback 가능
+
+5. MCPResponse
+    └─ 최종 응답으로 사용자에게 결과 반환
+
+
+@startuml
+skinparam classAttributeIconSize 0
+
+' Base 타입
+class MCPRequest {
+  - model: str
+  - messages: List[MCPRequestMessage]
+  - max_tokens: int
+  - system: str
+}
+
+class MCPRequestMessage {
+  - role: str
+  - content: str
+}
+
+' LLM Wrapper
+class Model {
+  - model: Llama
+  + ask(prompt: str): str
+}
+
+' Core Agent 구조
+class RouterAgent {
+  + route(request: MCPRequest): MCPResponse
+}
+
+class ModeSelector {
+  - model: Model
+  - plugin_manager: PluginManager
+  + decide(request: MCPRequest): "tool" or "plan"
+}
+
+class ToolSelector {
+  + select(request: MCPRequest): str
+}
+
+class PlanningAgent {
+  - model: Model
+  - plugin_manager: PluginManager
+  + plan(request: MCPRequest): List<String>
+}
+
+class PlanOrchestrator {
+  - plugin_manager: PluginManager
+  + execute(steps: List<String>, request: MCPRequest): MCPResponse
+}
+
+class Validator {
+  + is_valid(request, response): bool
+}
+
+' 플러그인 매니저 및 에이전트
+class PluginManager {
+  - _loaded_plugins: Dict
+  + run(name: str, request): MCPResponse
+  + get_plugin_descriptions(): Dict
+  + get_plugin_descriptions_txt(): str
+}
+
+abstract class BaseAgent {
+  + run(request: MCPRequest): MCPResponse
+  + describe(): str
+}
+
+' 관계
+MCPRequest "1" *-- "many" MCPRequestMessage
+
+RouterAgent --> ModeSelector
+ModeSelector --> Model
+ModeSelector --> PluginManager
+
+RouterAgent --> ToolSelector
+ToolSelector --> PluginManager
+
+RouterAgent --> PlanningAgent
+PlanningAgent --> Model
+PlanningAgent --> PluginManager
+
+RouterAgent --> PlanOrchestrator
+PlanOrchestrator --> PluginManager
+
+RouterAgent --> Validator
+
+PluginManager --> BaseAgent
+
+@enduml

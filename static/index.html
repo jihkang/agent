@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>LLM Router WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 30px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+
+        h2 {
+            color: #222;
+        }
+
+        #content {
+            width: 60%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 15px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #output {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<h2>LLM Router WebSocket Test</h2>
+
+<input type="text" id="content" value="Run a tool to check my flight status.">
+<button onclick="sendRequest()">Send</button>
+<button onclick="clearMessage()">Clear</button>
+
+<pre id="output"></pre>
+
+<script>
+    const socket = new WebSocket("ws://localhost:8000/ws");
+
+    socket.onmessage = function(event) {
+        const msg = JSON.parse(event.data);
+        document.getElementById("output").textContent += JSON.stringify(msg, null, 2) + "\n";
+    };
+
+    socket.onopen = function() {
+        console.log("WebSocket 연결됨.");
+    };
+
+    socket.onerror = function(error) {
+        console.error("WebSocket 에러:", error);
+    };
+
+    socket.onclose = function() {
+        console.log("WebSocket 연결 종료됨.");
+    };
+
+    function sendRequest() {
+        const content = document.getElementById("content").value;
+        const request = { content: content };
+        socket.send(JSON.stringify(request));
+    }
+
+    function clearMessage() {
+        document.getElementById("output").textContent = "";
+    }
+</script>
+
+</body>
+</html>
