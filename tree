@@ -1,0 +1,67 @@
+.
+├── __init__.py
+├── __pycache__
+│   ├── __init__.cpython-313.pyc
+│   ├── main.cpython-313.pyc
+│   ├── router.cpython-313.pyc
+│   └── run.cpython-313.pyc
+├── agent
+│   ├── __init__.py
+│   ├── __pycache__
+│   ├── execution_agent.py
+│   ├── planning_agent.py
+│   ├── selector
+│   ├── tool_agent.py
+│   └── validation_agent.py
+├── architecture
+├── architecture-구조도
+├── data
+│   ├── models
+│   └── prompt.md
+├── init.py
+├── LICENSE
+├── logs
+│   ├── Main_error.log
+│   └── Main_info.log
+├── main.py
+├── models
+│   ├── __pycache__
+│   └── model.py
+├── plugin
+│   ├── __init__.py
+│   ├── __pycache__
+│   ├── base.py
+│   ├── manager.py
+│   ├── registry.py
+│   └── scanner.py
+├── plugins
+│   ├── __init__.py
+│   ├── __pycache__
+│   ├── reserve.py
+│   ├── summarize.py
+│   └── weather.py
+├── poetry.lock
+├── pyproject.toml
+├── readme
+├── router.py
+├── scheme
+│   ├── __pycache__
+│   ├── a2a_message.py
+│   └── mcp.py
+├── static
+│   └── index.html
+├── tests
+│   ├── __init__.py
+│   ├── __pycache__
+│   └── test_planning_agent.py
+├── tree
+├── usage
+├── utils
+│   ├── __init__.py
+│   ├── __pycache__
+│   ├── env.py
+│   ├── logging.py
+│   └── util.py
+└── 아키텍처uml.png
+
+21 directories, 44 files

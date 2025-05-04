@@ -9,6 +9,7 @@ from models.model import ApiModel, Model
 from scheme.a2a_message import AgentMessage
 from scheme.mcp import MCPResponse, MCPResponseMessage
 from utils.env import load_dotenv
+from utils.logging import setup_logger
 
 
 class PlanningState:
@@ -111,7 +112,7 @@ class PlanningAgent(Agent):
 
         Only output the JSON array. Do not include any explanations or introductions.
         """
-
+        self.logger = setup_logger("PlanningAgent")
         load_dotenv()
         api_key = os.getenv("GOOGLE_API_KEY")
         self.model = ApiModel("gemini", api_key, "gemini-2.0-flash-lite")
@@ -149,7 +150,7 @@ class PlanningAgent(Agent):
                     yield best_plan
 
         except Exception as e:
-            logging.error(f"PlanningAgent 에러: {e}", exc_info=True)
+            self.logger.error(f"PlanningAgent 에러: {e}", exc_info=True)
             response_message = MCPResponseMessage[str](content="플래닝 중 시스템 오류가 발생했습니다.")
             response_payload = MCPResponse[str](content=[response_message])
             yield [AgentMessage(sender="PlanningAgent", receiver="user", payload=[response_payload])]

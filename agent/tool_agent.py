@@ -6,7 +6,7 @@ from agent.selector.base import Agent
 from models.model import Model
 from plugin.manager import PluginManager
 from scheme.a2a_message import AgentMessage
-from scheme.mcp import MCPRequest, MCPRequestMessage, MCPResponse, MCPResponseMessage
+from scheme.mcp import MCPResponse, MCPResponseMessage
 from utils.env import load_dotenv
 from utils.logging import setup_logger
 
@@ -15,7 +15,7 @@ class ToolSelectorAgent(Agent):
         self.plugin_manager = plugin_manager
         
         load_dotenv()
-        self.logger = setup_logger("tool_agent")
+        self.logger = setup_logger("toolAgent")
         local_model = os.getenv("LOCAL_MODEL")
         local_name = os.getenv("LOCAL_MODEL_NAME")
         local_dir = os.path.join(os.getenv("LOCAL_DIR"), local_model, local_name)
@@ -78,6 +78,7 @@ class ToolSelectorAgent(Agent):
                     )
 
                     result.append(new_msg)
+                    self.logger.info(llm_response)
                 yield result
 
         except Exception as e:

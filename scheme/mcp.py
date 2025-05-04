@@ -12,7 +12,7 @@ class MCPRequestMessage(GenericModel, Generic[T]):
 class MCPResponseMessage(GenericModel, Generic[U]):
     type: str = ""
     content: U
-    
+
 
 class MCPRequest(GenericModel, Generic[T]):
     """ default mcp response """

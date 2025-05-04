@@ -1,27 +1,53 @@
 import pytest
 from agent.planning_agent import PlanningAgent
 from scheme.a2a_message import AgentMessage
+from scheme.mcp import MCPRequest, MCPRequestMessage, MCPResponse, MCPResponseMessage
 
 @pytest.mark.asyncio
-async def test_planning_agent_generates_plan():
-    # Arrange
-    # 예시: 사용자 요청 메시지 생성 (실제 AgentMessage의 필드에 맞게 수정)
+async def test_planning_agent_generates_steps(monkeypatch):
+    # Arrange: ApiModel.ask를 모킹하여 LLM 응답을 강제로 지정
+    fake_response = [
+        AgentMessage(
+            sender="PlanningAgent",
+            receiver="ToolSelectorAgent",
+            payload=[
+                MCPResponse[str](content=[
+                    MCPResponseMessage[str](content="step 1: use search tool")
+                ])
+            ]
+        ),
+        AgentMessage(
+            sender="PlanningAgent",
+            receiver="user",
+            payload=[
+                MCPResponse[str](content=[
+                    MCPResponseMessage[str](content="final step: return to user")
+                ])
+            ]
+        )
+    ]
+
+    # monkeypatch를 사용하여 model.ask를 고정된 fake_response로 대체
+    monkeypatch.setattr("agent.planning_agent.ApiModel.ask", lambda *args, **kwargs: fake_response)
+
+    agent = PlanningAgent()
     input_message = AgentMessage(
-        sender="User",
-        recipient="PlanningAgent",
-        payload={"request": "generate plan for task X"}
+        sender="user",
+        receiver="PlanningAgent",
+        payload=[
+            MCPRequest[str](content=[
+                MCPRequestMessage[str](content="make a plan to search the weather")
+            ])
+        ]
     )
-    agent = PlanningAgent()  # 필요 시 초기화 인자 추가
 
     # Act
-    # on_event가 비동기 제너레이터 형태라면 아래와 같이 결과 메시지를 리스트에 담는다.
     results = []
-    async for msg in agent.on_event(input_message):
-        results.append(msg)
-    
-    # Assert
-    # 결과 메시지가 반환되었는지 확인
-    assert len(results) > 0, "PlanningAgent가 어떤 메시지도 생성하지 않았습니다."
+    async for result in agent.on_event(input_message):
+        results.extend(result)
 
+    # Assert
+    assert len(results) == 2
     for msg in results:
-        print(msg)
+        assert isinstance(msg, AgentMessage)
+        assert msg.receiver in {"ToolSelectorAgent", "user"}
