@@ -1,5 +1,7 @@
 import asyncio
 from fastapi import FastAPI, WebSocket
+from fastapi.responses import FileResponse
+
 from pydantic import BaseModel
 import json
 from plugin.manager import PluginManager
@@ -41,8 +43,11 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         await websocket.send_text(json.dumps({"error": str(e)}))
         await websocket.close()
-            
-    
+
+
+@app.get("/")
+async def get_index():
+    return FileResponse("static/index.html")
 
 
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")

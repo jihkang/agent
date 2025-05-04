@@ -7,7 +7,7 @@ from copy import deepcopy
 from agent.selector.base import Agent
 from models.model import ApiModel, Model
 from scheme.a2a_message import AgentMessage
-from scheme.mcp import MCPRequest, MCPRequestMessage, MCPResponse, MCPResponseMessage
+from scheme.mcp import MCPResponse, MCPResponseMessage
 from utils.env import load_dotenv
 
 

@@ -6,6 +6,9 @@ authors = ["jihkang"]
 license = "MIT"
 readme = "README.md"
 
+[tool.pytest.ini_options]
+pythonpath = "."
+
 [tool.poetry.dependencies]
 python = "^3.13"
 fastapi = "^0.115.12"
@@ -16,6 +19,8 @@ torchaudio = "^2.6.0"
 llama-cpp-python = "^0.3.8"
 huggingface-hub = "^0.30.2"
 uvicorn = {extras = ["standard"], version = "^0.34.2"}
+pytest = "^8.3.5"
+pytest-asyncio = "^0.26.0"
 
 
 [build-system]

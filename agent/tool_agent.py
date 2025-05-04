@@ -1,6 +1,4 @@
 from collections.abc import AsyncGenerator
-import json
-import logging
 import os
 from typing import List
 
@@ -10,13 +8,14 @@ from plugin.manager import PluginManager
 from scheme.a2a_message import AgentMessage
 from scheme.mcp import MCPRequest, MCPRequestMessage, MCPResponse, MCPResponseMessage
 from utils.env import load_dotenv
+from utils.logging import setup_logger
 
 class ToolSelectorAgent(Agent):
     def __init__(self, plugin_manager: PluginManager):
         self.plugin_manager = plugin_manager
         
         load_dotenv()
-
+        self.logger = setup_logger("tool_agent")
         local_model = os.getenv("LOCAL_MODEL")
         local_name = os.getenv("LOCAL_MODEL_NAME")
         local_dir = os.path.join(os.getenv("LOCAL_DIR"), local_model, local_name)
@@ -82,7 +81,7 @@ class ToolSelectorAgent(Agent):
                 yield result
 
         except Exception as e:
-            logging.error(f"ToolSelectorAgent 처리 중 시스템 오류 발생: {e}", exc_info=True)
+            self.logger.error(f"ToolSelectorAgent 처리 중 시스템 오류 발생: {e}", exc_info=True)
             response_message = MCPResponseMessage[str](content="ToolSelectorAgent 시스템 오류 발생")
             response_payload = MCPResponse[str](content=[response_message], stop_reason="failure")
             yield [AgentMessage(sender="ToolSelectorAgent", receiver="user", payload=[response_payload])]
