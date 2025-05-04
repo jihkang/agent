@@ -4,11 +4,12 @@ from agent.selector.base import Agent
 from plugin.manager import PluginManager
 from scheme.a2a_message import AgentMessage
 from scheme.mcp import MCPRequest, MCPRequestMessage, MCPResponse, MCPResponseMessage
-from utils.logging import logging
+from utils.logging import setup_logger
 
 class ExecutionAgent(Agent):
     def __init__(self, plugin_manager: PluginManager):
         self.plugin_manager = plugin_manager
+        self.logger = setup_logger("ExecutionAgent")
 
 
     async def on_event(self, message: AgentMessage) -> AsyncGenerator[List[AgentMessage]]:
@@ -54,7 +55,7 @@ class ExecutionAgent(Agent):
                 yield result
 
         except Exception as e:
-            logging.error(f"ExecutionAgent 에러: {e}", exc_info=True)
+            self.logger.error(f"ExecutionAgent 에러: {e}", exc_info=True)
             response_message = MCPResponseMessage[str](content="ExecutionAgent 처리 중 시스템 오류가 발생했습니다.")
             response_payload = MCPResponse[str](content=[response_message])
             yield [AgentMessage(sender="ExecutionAgent", receiver="user", payload=[response_payload])]

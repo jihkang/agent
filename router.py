@@ -8,8 +8,7 @@ from agent.execution_agent import ExecutionAgent
 from agent.validation_agent import ValidationAgent
 from plugin.manager import PluginManager
 
-import logging
-
+from utils.logging import setup_logger
 from utils.util import add_request  # 필요에 따라 로깅 모듈 사용
 
 RECEIVER_PRIORITY = {
@@ -32,6 +31,8 @@ class Router:
             "ExecutionAgent": ExecutionAgent(plugin_manager),
             "ValidationAgent": ValidationAgent(),
         }
+
+        self.logger = setup_logger("Router")
     
     def route(self, agent_messages: List[AgentMessage]) -> List[AgentMessage]:
         # 우선순위 기준으로 정렬
@@ -62,7 +63,7 @@ class Router:
                     # 단일 AgentMessage인 경우 큐에 추가
                     plan_queue.append(plan_result)
         except Exception as e:
-            logging.error(f"PlanningAgent 처리 중 예외 발생: {e}", exc_info=True)
+            self.logger.error(f"PlanningAgent 처리 중 예외 발생: {e}", exc_info=True)
             # Planning 단계 실패 시 루프 중단
             return
 
@@ -122,9 +123,9 @@ class Router:
                             yield [result]
 
                 else:
-                    logging.error(f"알 수 없는 에이전트 '{receiver}' - 해당 단계 건너뜀")
+                    self.logger.error(f"알 수 없는 에이전트 '{receiver}' - 해당 단계 건너뜀")
                     continue
 
             except Exception as e:
-                logging.error(f"{receiver} 처리 중 예외 발생: {e}", exc_info=True)
+                self.logger.error(f"{receiver} 처리 중 예외 발생: {e}", exc_info=True)
                 continue
