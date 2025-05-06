@@ -1,4 +1,5 @@
 import asyncio
+import random
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import FileResponse
 
@@ -20,16 +21,18 @@ class UserRequest(BaseModel):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-
+    id = str(random.random())
     try:
         while True:
             # 사용자의 요청 받기 (JSON 형태)
             data = await websocket.receive_text()
             user_request = json.loads(data)
             user_dict = {"content": user_request["content"]}
-
             # Router의 Generator 시작
-            async for agent_messages in router.on_event(user_dict):
+            async for agent_messages in router.on_event(user_dict, id):
+                print("Agent Result: ==================")
+                print(agent_messages)
+                print("================================")
                 for msg in agent_messages:
                     await websocket.send_text(json.dumps({
                         "sender": msg.sender,
@@ -37,12 +40,11 @@ async def websocket_endpoint(websocket: WebSocket):
                         "payload": [p.dict() for p in msg.payload]
                     }))
 
-                await asyncio.sleep(0.1)
 
        
     except Exception as e:
         await websocket.send_text(json.dumps({"error": str(e)}))
-        await websocket.close()
+        # await websocket.close()
 
 
 @app.get("/")

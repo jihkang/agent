@@ -1,5 +1,7 @@
 To start:
 
+created .env
+
 first run init.py 
 
 It' will be changed to docker system
@@ -9,3 +11,8 @@ It' will be changed to docker system
 [V] ExecutionAgent의 결과 를 PlanningAgent 로 변경 
 [V] Scheme 를 변경하고, 응답 의 결과를 MCPResponse로 변경 
 [V] 시나리오를 이용해서 전체 동작 테스트 
+
+
+0505 
+[ ] MCTS 무한루프 원인 분석 및 수정
+[ ] 전체 테스트 코드 업데이트 

@@ -18,6 +18,7 @@ class MCPRequest(GenericModel, Generic[T]):
     """ default mcp response """
     model: str = ""
     content: List[MCPRequestMessage[T]] | MCPRequestMessage[T]
+    dag: int = -1
     selected_tool: Optional[str] = None
     max_tokens: int = 256
     system: str = ""
@@ -26,7 +27,7 @@ class MCPRequest(GenericModel, Generic[T]):
 class MCPResponse(GenericModel, Generic[U]):
     """ defulat mcp request """
     model: str = ""
-    id: str = "0"
     content: List[MCPResponseMessage[U]] | MCPResponseMessage[U]
+    dag: int = -1
     selected_tool: Optional[str] = None
     stop_reason: str = "done"

@@ -19,36 +19,50 @@ class ToolSelectorAgent(Agent):
         local_model = os.getenv("LOCAL_MODEL")
         local_name = os.getenv("LOCAL_MODEL_NAME")
         local_dir = os.path.join(os.getenv("LOCAL_DIR"), local_model, local_name)
-        self.model = Model(local_dir)
-
         self.system_prompt_template = """
-        You are a ToolSelectorAgent. Your role is to choose the most appropriate tool (execution agent) to handle a given task.
+            **Available Tools** (Must use EXACT names):
+            {tools_list}
+            """
+        self.system_prompt_for_execution = """    
+            **Selection Criteria**:
+            1. Match task requirements to tool capabilities with high confidence.
+            2. Prefer specialized tools over general ones.
+            3. Only select a tool if all required parameters can be extracted from the task.
+            4. If no tool is appropriate, set "selected_tool" to empty string and explain why in "content".
+            5. selected_tool "" or must in tools_list
+            **Output Format** (STRICT JSON ONLY):
+            {{
+                "selected_tool": "exact_tool_name" | "",
+                "content": {tool_select_info}
+            }}
 
-        Available tools:
-        {tools_list}
+            **Examples**:
 
-        Your job is to:
-        1. Analyze the given task.
-        2. Select the best tool (only one) that can perform the task most effectively.
-        3. Extract the core instruction that should be executed.
+            Input: "Find current weather in Seoul"
+            Output: {{
+                "selected_tool": "weather_api",
+                "content": {{
+                    "content": "get_current_weather",
+                    "parameters": {{"city": "Seoul"}}
+                }}
+            }}
 
-        Return ONLY a JSON object in the following format:
+            Input: "Book flight to Paris"
+            Output: {{
+                "selected_tool": "",
+                "content": "No booking tool available"
+            }}
 
-        {{
-            "selected_tool": "<tool_name>",
-            "content": "<task_content_to_execute>"
-        }}
-
-        Only output the JSON. Do not include any explanations, reasoning, or additional text.
+            **IMPORTANT**: Return ONLY the JSON object as above. Do NOT include any explanations, markdown, or natural language text in your output. The "content" field must be a valid JSON object (not a string) if a tool is selected.
         """
+        self.model = Model(local_dir)
 
     async def on_event(self, message: AgentMessage) -> AsyncGenerator[List[AgentMessage]]:
         try:
             tools = self.plugin_manager.list_registry()
+            print(tools)
             tools_list = "\n".join([f'- "{tool}"' for tool in tools])
-
             system_prompt = self.system_prompt_template.format(tools_list=tools_list)
-
             for payload in message.payload:
                 content_data = payload.content
                 if isinstance(content_data, list):
@@ -56,30 +70,34 @@ class ToolSelectorAgent(Agent):
                 else:
                     queries = [content_data.content]
 
-                result = []
                 for query in queries:
                     if not query:
                         response_message = MCPResponseMessage[str](content="ToolSelectorAgent: 실행할 작업이 없습니다.")
                         response_payload = MCPResponse[str](content=[response_message])
-                        result.append(AgentMessage(sender="ToolSelectorAgent", receiver="user", payload=[response_payload]))
+                        yield [AgentMessage(sender="ToolSelectorAgent", receiver="user", payload=[response_payload])]
                         continue
-
+                    
                     # 🔥 LLM 호출
-                    llm_response = self.model.ask(system_prompt, query)
+                    llm_response = await self.model.ask(system_prompt, query)
+
                     # after local to change will be api then seperate code added.
-                    print(llm_response)
                     if not llm_response:
                         raise e
-                    
-                    new_msg = AgentMessage(
-                        sender="ToolSelectorAgent",
-                        receiver="ExecutionAgent",
-                        payload=llm_response
-                    )
 
-                    result.append(new_msg)
-                    self.logger.info(llm_response)
-                yield result
+                    llm_response if isinstance(llm_response, list) else [llm_response]
+                    for response in llm_response:
+                        if response.selected_tool == "":
+                            raise "올바른 도구를 찾지못했습니다."
+                        
+                        new_msg = AgentMessage(
+                            id = message.id,
+                            sender="ToolSelectorAgent",
+                            receiver="ExecutionAgent",
+                            payload=[response]
+                        )
+                        
+                        self.logger.info(new_msg)
+                        yield new_msg
 
         except Exception as e:
             self.logger.error(f"ToolSelectorAgent 처리 중 시스템 오류 발생: {e}", exc_info=True)

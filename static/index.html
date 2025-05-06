@@ -56,7 +56,7 @@
 
 <h2>LLM Router WebSocket Test</h2>
 
-<input type="text" id="content" value="Run a tool to check my flight status.">
+<input type="text" id="content" value="성동구 날씨를 확인하고 일정을 추천해줘">
 <button onclick="sendRequest()">Send</button>
 <button onclick="clearMessage()">Clear</button>
 
@@ -80,6 +80,7 @@
 
     socket.onclose = function() {
         console.log("WebSocket 연결 종료됨.");
+        window.location.reload(); // 페이지 새로고침
     };
 
     function sendRequest() {

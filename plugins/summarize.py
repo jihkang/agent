@@ -2,13 +2,16 @@ from scheme.mcp import MCPResponse, MCPResponseMessage
 from plugin.base import BaseAgent
 
 class SummaryPlugin(BaseAgent):
-    name = "summary"
+    name: str
+
+    def __init__(self):
+        self.name = self.plugin_name()
 
     @staticmethod
     def plugin_name():
-        return "Summarizes a given paragraph into a short sentence."
+        return "SummaryPlugin"
     
-    def run(self, query: str) -> MCPResponse[str]:
+    async def run(self, query: str) -> MCPResponse[str]:
         if not query or not isinstance(query, str):
             return MCPResponse[str](content=[MCPResponseMessage[str](content="요약할 내용이 없습니다.")])
         

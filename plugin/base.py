@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
-from scheme.mcp import U, MCPResponse
+from scheme.mcp import U, MCPRequest, MCPResponse
 
 
 # will be change Dict to Request and return will be changed Response
@@ -27,11 +27,14 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def run(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+    def get_info() -> any:
+        return ""
+
+    @abstractmethod
+    async def run(self, input_data: MCPRequest) -> MCPResponse:
         """ 실행 메서드"""
         pass
-
-    
+  
     def push_state(self, role: str, response: MCPResponse[U]) -> None:
         if (role not in self.state):
             self.state[role] = []

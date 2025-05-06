@@ -1,6 +1,8 @@
+import asyncio
 import importlib
 from collections import OrderedDict
 from typing import Any
+from agent.selector.base import Agent
 from plugin.registry import PLUGIN_REGISTRY
 from plugin.scanner import register_scan_directory
 from scheme.mcp import MCPRequest, MCPResponse
@@ -45,6 +47,7 @@ class PluginManager:
         if len(self._loaded_plugins) >= self._maximum_tools:
             removed_name, _ = self._loaded_plugins.popitem(last=False)
             print(f"[PluginManager] unload for cached data '{removed_name}'")
+            register_scan_directory("plugins")
         
         instance = agent()
         self._loaded_plugins[name] = instance
@@ -58,9 +61,8 @@ class PluginManager:
         if not isinstance(name, str):
             raise TypeError(f"Plugin name must be a string, but got: {type(name)}")
 
-        register_scan_directory("plugins")
         plugin = self.load_plugin(name)
-        return plugin.run(request)
+        return asyncio.run(plugin.run(request))
 
     def list_loaded(self) -> list[str]:
         """

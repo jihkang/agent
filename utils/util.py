@@ -3,9 +3,10 @@ from pathlib import Path
 import subprocess
 import sys
 import importlib
-from typing import List
+from typing import Any, List
 from scheme.a2a_message import AgentMessage
 from scheme.mcp import MCPRequest, MCPRequestMessage, MCPResponse, MCPResponseMessage
+from utils.logging import setup_logger
 
 
 # 패키지 이름과 실제 import 이름이 다를 때를 위한 매핑
@@ -37,37 +38,37 @@ def safe_import(package: str, import_as: str = None):
 
 def check_file(path: str, filename: str = "") -> bool:
     path = Path(path)
-    print(path.exists())
     if filename == "":
         return path.exists()
     return any(path.rglob(filename))
 
 
 def convert_to_agent_message_local(response_text: List[str]) -> List[MCPRequest]:
+    logger = setup_logger("DefaultModel")
     messages = []
 
     try:
         for response in response_text:
-            # 코드블럭 제거
             if response.startswith("```json"):
                 response = response.lstrip("```json").rstrip("```").strip()
             elif response.startswith("```"):
                 response = response.lstrip("```").rstrip("```").strip()
-
+        
             parsed_response = json.loads(response)
+            print(parsed_response)
 
             selected_tool = parsed_response.get("selected_tool", "")
             task_content = parsed_response.get("content")
 
             # MCPRequestMessage 생성
-            payload_obj = MCPRequest(content=[MCPRequestMessage[str](content=task_content)], selected_tool=selected_tool)
+            payload_obj = MCPRequest[type(task_content)](content=[MCPRequestMessage[type(task_content)](content=task_content)], selected_tool=selected_tool, dag=-1)
             messages.append(payload_obj)
 
     except json.JSONDecodeError as e:
-        print(f"[convert_tool_selection_message] JSON 파싱 에러: {e}")
+        logger.error(f"[convert_tool_selection_message] JSON 파싱 에러: {e}", exc_info=True)
     except Exception as e:
-        print(f"[convert_tool_selection_message] 알 수 없는 에러: {e}")
-
+        logger.error(f"[convert_tool_selection_message] 알 수 없는 에러: {e}", exc_info=True)
+    
     return messages
 
 def convert_to_agent_message_api(request_sender: str, response_text: List[str]) -> List[AgentMessage]:
@@ -86,8 +87,8 @@ def convert_to_agent_message_api(request_sender: str, response_text: List[str]) 
                 sender = request_sender
                 receiver = item.get("receiver")
                 payload_data = item.get("payload", [])
-
                 payload_objs = []
+                id = item.get("id")
                 for data in payload_data:
                     if isinstance(data, dict):
                         if receiver == "user":
@@ -100,6 +101,7 @@ def convert_to_agent_message_api(request_sender: str, response_text: List[str]) 
                             )
 
                 agent_message = AgentMessage(
+                    id = id,
                     sender=sender,
                     receiver=receiver,
                     payload=payload_objs

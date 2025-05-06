@@ -10,11 +10,9 @@ def install_local_llm():
     model_file_name = os.getenv("LOCAL_MODEL_NAME")         # ex: llama-2-13b-chat.Q4_K_M.gguf
     local_dir = os.getenv("LOCAL_DIR")                      # ex: /Users/yourname/models/
 
-    target_path = os.path.join(local_dir, model_file_name)
-    
-    if check_file(target_path, "TheBloke/Llama-2-13B-chat-GGUF"):
+    target_path = os.path.join(local_dir, os.path.join(repo_id, model_file_name))    
+    if check_file(target_path):
         return
-    print(model_file_name)
 
     hugginface_hub.snapshot_download(
         repo_id=repo_id,
