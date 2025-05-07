@@ -25,13 +25,9 @@ class BaseAgent(ABC):
     @abstractmethod
     def plugin_name() -> str:
         pass
-
+    
     @abstractmethod
-    def get_info() -> any:
-        return ""
-
-    @abstractmethod
-    async def run(self, input_data: MCPRequest) -> MCPResponse:
+    async def run(self, input_data:Any):
         """ 실행 메서드"""
         pass
   

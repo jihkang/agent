@@ -16,34 +16,55 @@ class ExecutionAgent(Agent):
         try:
             for payload in message.payload:
                 if not payload:
-                    continue 
-            
-                print(payload)                
+                    continue
+
                 result = []
-                
                 # 툴이름은 tool selector가 제공한 데이터를 실행 해주는것 으로 진행 
                 plugin_name = payload.selected_tool
-                # MCPRequest 생성
-                request = MCPRequest[any](content=[MCPRequestMessage[any](content=payload)], dag=message.id)
-                print("for plugin manager : {request}")
                 # 플러그인 실행
-                plugin_response = self.plugin_manager.run(plugin_name, request)
-                # 결과 전달
-                # 🔥 결과를 유저에게 넘길 때는 무조건 MCPResponse로 감싸야 함
-                if isinstance(plugin_response, MCPRequest):
-                    # 실행 결과가 MCPRequest형태로 잘못 온 경우 강제 변환 (혹시모를 대비)
-                    final_payload = MCPResponse[str](content=[MCPResponseMessage[str](content=plugin_response.content)], dag=message.id)
-                else:
-                    final_payload = plugin_response  # 정상 Response라면 그대로
+                for plan in payload.content:
+                    print("ExecutionAgent =========================")
+                    print(plan)
+                    print("========================================")
+                    plugin_response = await self.plugin_manager.run(plugin_name, plan)
+                  
+                    if plugin_response.stop_reason == "failure":
+                        original_task = plan.content if hasattr(plan, "content") else {}
+                        request_message = AgentMessage(
+                            sender = "ExecutionAgent",
+                            receiver = "ToolSelectorAgent",
+                            id = message.id,
+                            payload = MCPRequest[dict](
+                                content=[MCPRequestMessage[dict](
+                                    content = {
+                                        "missing" : plugin_response.content[0].content,
+                                        "original_task": original_task
+                                    }
+                                )],
+                                selected_tool = None,
+                                dag = message.id
+                            )
+                        )
+                        print("=====Failed and new Request========")
+                        print(request_message)
+                        print("===================================")
+                        yield [request_message]
+                        continue             
 
-                result.append(
-                    AgentMessage(
-                        sender="ExecutionAgent",
-                        receiver="Router",
-                        id = message.id,
-                        payload=[final_payload]  # 반드시 Response로 보내기
+                    if isinstance(plugin_response, MCPRequest):
+                        # 실행 결과가 MCPRequest형태로 잘못 온 경우 강제 변환 (혹시모를 대비)
+                        final_payload = MCPResponse[str](content=[MCPResponseMessage[str](content=plugin_response.content)], dag=message.id)
+                    else:
+                        final_payload = plugin_response  # 정상 Response라면 그대로
+
+                    result.append(
+                        AgentMessage(
+                            sender="ExecutionAgent",
+                            receiver="Router",
+                            id = message.id,
+                            payload=[final_payload]  # 반드시 Response로 보내기
+                        )
                     )
-                )
 
                 yield result
 

@@ -23,8 +23,8 @@ RECEIVER_PRIORITY = {
     "fail": 6
 }
 
-SPECIAL_ROUTER = ["user"]
-MAX_ITERATIONS = 10
+SPECIAL_ROUTER = ["user", "Router"]
+MAX_ITERATIONS = 100
 
 class Router:
     def __init__(self, plugin_manager: PluginManager):
@@ -63,9 +63,8 @@ class Router:
             async for plan_result in self.agents["PlanningAgent"].on_event(initial_message):
                 plan_result = plan_result if isinstance(plan_result, list) else [plan_result]    
                 for new_plan in plan_result:
-                    plan_queue.append([new_plan])
-            
-            print(f"plan: {plan_queue}")
+                    yield [new_plan]
+                    plan_queue.append(new_plan)
         except Exception as e:
             self.logger.error(f"PlanningAgent 예외: {e}", exc_info=True)
             return
@@ -73,15 +72,16 @@ class Router:
         self.sessions[session_id] = self.agents["PlanningAgent"].get_state()
         state = self.sessions[session_id]
         idx = 0
-        while plan_queue and idx < MAX_ITERATIONS:
+        while plan_queue:
             idx += 1
-            msg = plan_queue.popleft()[0]
+            if (idx > MAX_ITERATIONS):
+                return 
+            
+            msg = plan_queue.popleft()
             receiver = msg.receiver or ""
-            print(receiver)
             try:
-                if receiver == "user":
-                    print("[Router] user에게 바로 전달:", msg)
-                    yield [msg]
+                if receiver in SPECIAL_ROUTER:
+                    self._update_session_state(session_id, state)
                     continue
 
                 if receiver in self.agents:
@@ -89,25 +89,29 @@ class Router:
                     print(f"[Router] {receiver}의 on_event 호출 준비")
                     async for result in agent.on_event(msg):
                         print(f"[Router] {receiver}의 on_event 결과:", result)
-                        response = result if isinstance(result, list) else [result]
-                        for plan in response:
+                        result_list = result if isinstance(result, list) else [result]
+                        yield result_list
+
+                        for plan in result_list:
+                            if not isinstance(plan, AgentMessage):
+                                raise TypeError("[Router] Agent가 AgentMessage 아닌 객체를 반환했습니다.")
+                            
                             if plan.sender == "ExecutionAgent":
-                                state.set_result(plan.plan, plan)
+                                state.set_result(plan.id, plan)
                             else:
                                 state.set_history(plan)
 
                             if plan.receiver == "PlanningAgent":
-                                plan_queue.append([plan])
+                                plan_queue.append(plan)
                             else:
-                                plan_queue.appendleft([plan])
-                            
-                        yield [result]
+                                plan_queue.appendleft(plan)
 
                 else:
                     self.logger.error(f"알 수 없는 receiver {receiver}")
 
             except Exception as e:
                 self.logger.error(f"{receiver} 처리 중 에러: {e}", exc_info=True)
+                yield [e]
 
 
     def _update_session_state(self, session_id: str, new_state: PlanningState):

@@ -11,7 +11,7 @@ class Model:
     def __init__(self, model = "", prompt = ""):
         self.model = Llama(model_path=model, n_ctx=2048, n_threads=8, prompt=prompt)
     
-    async def ask(self, prompt: str = "", request: str = "", convert_need: bool = True) -> List[MCPRequest[Any]] | List[str]:
+    async def ask(self, prompt: str = "", request: str = "") -> List[MCPRequest[Any]]:
         full_prompt = f"""[INST] <<SYS>>
             {prompt}
             <</SYS>>
@@ -30,10 +30,7 @@ class Model:
         )
         
         response = [ret["text"].rstrip() for ret in response["choices"]]
-        if convert_need: 
-            return convert_to_agent_message_local(response)
-        
-        return response
+        return convert_to_agent_message_local(response)
     
 
 class ApiModel:

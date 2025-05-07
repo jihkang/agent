@@ -2,8 +2,6 @@
 import os
 from llama_cpp import Any
 import requests
-from collections.abc import AsyncGenerator
-from typing import Dict, List
 from plugin.base import BaseAgent
 from scheme.mcp import MCPRequest, MCPResponse, MCPResponseMessage
 from utils.env import load_dotenv
@@ -11,6 +9,7 @@ from utils.logging import setup_logger
 
 class WeatherToolAgent(BaseAgent):
     def __init__(self):
+        super().__init__()
         load_dotenv()
         self.logger = setup_logger("weather_tool_agent")
         self.api_key = os.getenv("OPENWEATHER_API_KEY", "")
@@ -21,29 +20,22 @@ class WeatherToolAgent(BaseAgent):
     def plugin_name():
         return f"WeatherToolAgent"
 
-    
-    def request_info(self)-> Dict[str, any]:
-        return {
-            "latitude": "",
-            "longitude": ""
-        }
-
-    async def run(self, input_data: MCPRequest) -> MCPResponse:
+    async def run(self, input_data):
         try:
-            if not "content" in input_data:
-                raise "리퀘스트가 비었습니다."
-            
+            if not hasattr(input_data, "content"):
+                raise ValueError("리퀘스트가 비었습니다.")
+    
             request_content = input_data.content  # Assuming single message
-            print(request_content)
+        
             # 도시 이름 추출
-            json = input_data.json()
-            city = json["city"]
+            city = request_content["city"]
             params = {
                 "q": city,
                 "appid": self.api_key,
                 "units": "metric",
-                "lang": "kr"
+                "lang": "kr" 
             }
+            
             if self.api_key == "":
                 weather = "맑음"
                 temp = "22"

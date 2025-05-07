@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -59,8 +60,7 @@ def convert_to_agent_message_local(response_text: List[str]) -> List[MCPRequest]
 
             selected_tool = parsed_response.get("selected_tool", "")
             task_content = parsed_response.get("content")
-
-            # MCPRequestMessage 생성
+        
             payload_obj = MCPRequest[type(task_content)](content=[MCPRequestMessage[type(task_content)](content=task_content)], selected_tool=selected_tool, dag=-1)
             messages.append(payload_obj)
 
@@ -125,3 +125,23 @@ def add_request(data: AgentMessage) -> bool:
                 return False
 
     return True
+
+def get_schema_from_class_path(cls_path: str) -> dict | None:
+    """
+    cls_path를 받아서 동일 경로의 json 파일을 읽어온다.
+    없으면 None 반환
+    """
+    # 1. 'plugins.my_plugin.MyPlugin' -> 'plugins/my_plugin.json' 변환
+    path_parts = cls_path.split(".")
+    dir_path = os.path.join(*path_parts[:-1])  # 파일명 제외
+    json_path = f"{dir_path}.json"
+
+    # 2. 파일 존재 여부 확인 없으면 어떤 응답이던 상관없음.
+    if not os.path.exists(json_path):
+        return ""
+
+    # 3. 파일 읽기
+    with open(json_path, "r", encoding="utf-8") as f:
+        schema = json.load(f)
+
+    return schema

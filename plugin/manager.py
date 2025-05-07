@@ -1,11 +1,12 @@
 import asyncio
 import importlib
 from collections import OrderedDict
-from typing import Any
+from typing import Any, List, Tuple
 from agent.selector.base import Agent
 from plugin.registry import PLUGIN_REGISTRY
 from plugin.scanner import register_scan_directory
 from scheme.mcp import MCPRequest, MCPResponse
+from utils.util import get_schema_from_class_path
 from .base import BaseAgent
 
 
@@ -23,14 +24,11 @@ class PluginManager:
     def import_class_from_path(self, path: str) -> type[BaseAgent]:
         """
         'plugins 객체를 동적 로딩' → 실제 클래스 객체 반환
-        """
-
-        if path == "":
-            path = self._plugin_package
-
+        """    
         module_path, class_name = path.rsplit(".", 1)
-        module = importlib.import_module(module_path)
+        module = importlib.import_module(module_path)    
         cls = getattr(module, class_name)
+    
         return cls
 
     def load_plugin(self, name: str) -> BaseAgent:
@@ -44,6 +42,7 @@ class PluginManager:
 
         cls_path = PLUGIN_REGISTRY[name]
         agent = self.import_class_from_path(cls_path)
+    
         if len(self._loaded_plugins) >= self._maximum_tools:
             removed_name, _ = self._loaded_plugins.popitem(last=False)
             print(f"[PluginManager] unload for cached data '{removed_name}'")
@@ -51,30 +50,30 @@ class PluginManager:
         
         instance = agent()
         self._loaded_plugins[name] = instance
-        return instance        
+        return instance
 
-    def run(self, name: str, request: MCPRequest[Any]) -> MCPResponse[Any]:
+    async def run(self, name: str, request) -> MCPResponse[Any] | MCPRequest[Any]:
         """
         지정된 플러그인을 실행하여 결과 반환
         """
-
-        if not isinstance(name, str):
-            raise TypeError(f"Plugin name must be a string, but got: {type(name)}")
-
+        
         plugin = self.load_plugin(name)
-        return asyncio.run(plugin.run(request))
+        
+        return await plugin.run(request)
 
-    def list_loaded(self) -> list[str]:
+    def list_loaded(self) -> List[str]:
         """
         현재 로딩된 플러그인 목록 반환
         """
         return list(self._loaded_plugins.keys())
-    
 
-    def list_registry(self) -> list[str]:
+    def list_registry(self) -> List[str]:
         return [name for name in PLUGIN_REGISTRY.keys()]
-
-
+    
+    def pair_registry_execute_info(self) -> List[str]:
+        return [f"{name} - {get_schema_from_class_path(PLUGIN_REGISTRY[name])}" if get_schema_from_class_path(PLUGIN_REGISTRY[name]) else "" for name in PLUGIN_REGISTRY.keys()]
+    
+    
     def unload(self, name: str) -> None:
         """
         특정 플러그인 메모리에서 언로드

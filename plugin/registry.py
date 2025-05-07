@@ -9,4 +9,3 @@ def register_plugin(name: str,  cls_path: str) -> None:
         raise ValueError(f"[Registry] '{name}'은 이미 등록되어 있습니다.")
 
     PLUGIN_REGISTRY[name] = cls_path
-

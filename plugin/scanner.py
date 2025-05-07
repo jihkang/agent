@@ -3,7 +3,6 @@ import importlib.util
 from plugin.base import BaseAgent
 from plugin.registry import register_plugin
 
-
 def register_scan_directory(path: str):
     package_prefix: str = path
     
