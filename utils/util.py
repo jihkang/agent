@@ -149,37 +149,34 @@ def get_schema_from_class_path(cls_path: str) -> dict | None:
 
 def merge_agent_messages(previous_messages: List[AgentMessage], new_message: AgentMessage) -> AgentMessage:
     """이전 AgentMessage 리스트와 새로운 AgentMessage를 병합."""
-    if not previous_messages:
-        return new_message
+   
+def merge_agent_messages(previous_messages: List[AgentMessage], new_message: AgentMessage) -> AgentMessage:
+    """이전 AgentMessage 리스트와 새로운 AgentMessage를 병합."""
 
-    # 새로운 메시지 복사
+    if not previous_messages:
+        return deepcopy(new_message)  # 그냥 새 메시지를 반환
+
+    # 새로운 메시지 복사 (deepcopy 필수!)
     merged_message = deepcopy(new_message)
+
+    # content를 병합할 dict 생성
+    merged_content = {}
 
     for previous in previous_messages:
         for prev_payload in previous.payload:
-            for new_payload in merged_message.payload:
+            for prev_content in prev_payload.content:
+                if hasattr(prev_content, "content"):
+                    for k, v in prev_content.content.items():
+                        merged_content[k] = v  # 이전 값 저장
 
-                # selected_tool 은 항상 new_message 기준 유지
+    # 이제 new_message 의 content를 덮어씌움
+    for new_payload in merged_message.payload:
+        for new_content in new_payload.content:
+            if hasattr(new_content, "content"):
+                for k, v in new_content.content.items():
+                    merged_content[k] = v  # 새로운 값으로 overwrite
 
-                # content 병합
-                prev_content_list = prev_payload.content
-                new_content_list = new_payload.content
-
-                merged_contents = []
-
-                # content는 MCPRequestMessage 리스트
-                for prev_content in prev_content_list:
-                    merged_content = deepcopy(prev_content.content)
-
-                    for new_content in new_content_list:
-                        for k, v in new_content.content.items():
-                            # 기존 값이 없으면 추가
-                            if k not in merged_content:
-                                merged_content[k] = v
-
-                    merged_contents.append(MCPRequestMessage(content=merged_content))
-
-                # 병합된 content 적용
-                new_payload.content = merged_contents
+        # content는 **무조건 하나짜리 리스트**로 유지
+        new_payload.content = [MCPRequestMessage(content=merged_content)]
 
     return merged_message
