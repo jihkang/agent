@@ -82,11 +82,6 @@ class ToolSelectorAgent(Agent):
             
             for payload in message.payload:
                 content_data = payload.content
-                # print(content_data)
-                # if isinstance(content_data, list):
-                #     queries = [item.content for item in content_data]
-                # else:
-                #     queries = [content_data.content]
 
                 for query in content_data:
                     if not query.content:
@@ -96,21 +91,11 @@ class ToolSelectorAgent(Agent):
                         continue
                     
                     request = query.content
-                    if isinstance(request, dict):
-                        send_query = ""
-                        if "missing" in request:
-                            append_query = "Fill this output"
-                            append_query += json.dumps(request["missing"])
-                            send_query += append_query
-
-                        if "origin_task" in request:
-                            send_query += json.dumps(request["origin_task"])
-
-                        if send_query:
-                            request = send_query
+                    if not isinstance(query.content, str):
+                        request = json.dumps(query.content)
+                    
                     print("=========Tool Selector Query Result ==============")
-                    print(query)
-
+                    print(request)
                     # 🔥 LLM 호출
                     llm_response = await self.model.ask(system_prompt, request)
                     print(llm_response)
@@ -119,19 +104,11 @@ class ToolSelectorAgent(Agent):
                     if not llm_response:
                         raise e
                     
-
                     llm_response = llm_response if isinstance(llm_response, list) else [llm_response]
                     for response in llm_response:
                         if response.selected_tool == "":
                             raise "올바른 도구를 찾지못했습니다."
 
-                         # ✅ original_task 가져오기 (없으면 query 전체가 original_task)
-                        if isinstance(query, dict) and isinstance(response, dict):
-                            original_task = query.get("original_task", query)
-                            merged_content = {**original_task, **response.content}
-                            # ✅ merge해서 content 갱신
-                            response.content = merged_content
-                        
                         new_msg = AgentMessage(
                             id = message.id,
                             sender="ToolSelectorAgent",

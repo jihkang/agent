@@ -49,6 +49,9 @@ async def websocket_endpoint(websocket: WebSocket):
             user_dict = {"content": user_request["content"]}
             # Router의 Generator 시작
             async for agent_messages in router.on_event(user_dict, str(id)):
+                print("[AgentMessage]=================")
+                print(agent_messages)
+                print("===============================")
                 for agent_message in agent_messages:
                     try:
                         await send_response(websocket, deepcopy(agent_message))
@@ -58,10 +61,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         continue 
 
             CACHED_DATA = []
-            print("done")
-       
         except Exception as e:
-            print("error!!!", e)
             await websocket.send_text(json.dumps({"error": str(e)}))
         # await websocket.close()
         id += 1

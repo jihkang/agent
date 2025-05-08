@@ -13,6 +13,7 @@ from agent.execution_agent import ExecutionAgent
 from agent.validation_agent import ValidationAgent
 from plugin.manager import PluginManager
 from utils.logging import setup_logger
+from utils.util import merge_agent_messages
 
 RECEIVER_PRIORITY = {
     "PlanningAgent": 1,
@@ -86,25 +87,50 @@ class Router:
 
                 if receiver in self.agents:
                     agent = self.agents[receiver]
+
                     print(f"[Router] {receiver}의 on_event 호출 준비")
                     async for result in agent.on_event(msg):
                         print(f"[Router] {receiver}의 on_event 결과:", result)
                         result_list = result if isinstance(result, list) else [result]
-                        yield result_list
-
+                        
                         for plan in result_list:
                             if not isinstance(plan, AgentMessage):
                                 raise TypeError("[Router] Agent가 AgentMessage 아닌 객체를 반환했습니다.")
-                            
+
                             if plan.sender == "ExecutionAgent":
                                 state.set_result(plan.id, plan)
+                                stop_reason = getattr(plan.payload[0], "stop_reason", "")
+                                if stop_reason == "failure":
+                                    pass
+
+                                if stop_reason != "need_more_data":
+                                    need_more_msg = state.get_result_failure(msg.id)
+                                    if need_more_msg:
+                                        combined_message = merge_agent_messages(need_more_msg, plan)
+                                        retry_task = AgentMessage(
+                                            sender="Router",
+                                            receiver="ExecutionAgent",
+                                            id=plan.id,
+                                            payload=combined_message.payload
+                                        )
+                                        
+                                        plan_queue.appendleft(retry_task)
+                                        state.pop_result(need_more_msg)
+
+                                    plan_queue.appendleft(plan)
+                                    continue
                             else:
                                 state.set_history(plan)
+
+                            if plan.receiver in SPECIAL_ROUTER:
+                                continue 
 
                             if plan.receiver == "PlanningAgent":
                                 plan_queue.append(plan)
                             else:
-                                plan_queue.appendleft(plan)
+                                plan_queue.appendleft(plan) 
+                            
+                        yield result_list
 
                 else:
                     self.logger.error(f"알 수 없는 receiver {receiver}")

@@ -22,13 +22,15 @@ class WeatherToolAgent(BaseAgent):
 
     async def run(self, input_data):
         try:
-            if not hasattr(input_data, "content"):
-                raise ValueError("리퀘스트가 비었습니다.")
-    
             request_content = input_data.content  # Assuming single message
         
             # 도시 이름 추출
-            city = request_content["city"]
+            city = request_content.get("city", None)
+            missing = {}
+            if not city:
+                missing["city"] = "string";
+                raise ValueError(missing)
+            
             params = {
                 "q": city,
                 "appid": self.api_key,
@@ -48,11 +50,22 @@ class WeatherToolAgent(BaseAgent):
                     data = response.json()
                     weather = data['weather'][0]['description']
                     temp = data['main']['temp']
-                    content = f"{city}의 현재 날씨는 '{weather}', 온도는 {temp}°C입니다."
+                    content = {
+                        "request": input_data.request,
+                        content: f"{city}의 현재 날씨는 '{weather}', 온도는 {temp}°C입니다.",
+                        city: city,
+                        weather: weather,
+                    }
 
-            mcp_response_msg = MCPResponseMessage[str](content=content)
-            return MCPResponse[str](content=[mcp_response_msg], dag= -1)
+            mcp_response_msg = MCPResponseMessage[dict](content=content)
+            return MCPResponse[dict](content=[mcp_response_msg], dag= -1)
+        except ValueError as v:
+            content = v
+            content["request"] = input_data.request
+            response = MCPRequest(content=content)
+            return MCPResponse[dict](content=[response], dag=-1, stop_reason="need_more_data")
+        
         except Exception as e:
             self.logger.error(f"WeatherToolAgent 오류: {e}", exc_info=True)
             error_response = MCPResponseMessage[str](content="날씨 정보를 처리하는 도중 오류가 발생했습니다.")
-            return MCPResponse[str](content=[error_response], dag = -1)
+            return MCPResponse[str](content=[error_response], dag = -1, stop_reason="failure")

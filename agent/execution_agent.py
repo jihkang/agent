@@ -23,13 +23,8 @@ class ExecutionAgent(Agent):
                 plugin_name = payload.selected_tool
                 # 플러그인 실행
                 for plan in payload.content:
-                    print("ExecutionAgent =========================")
-                    print(plan)
-                    print("========================================")
                     plugin_response = await self.plugin_manager.run(plugin_name, plan)
-                  
                     if plugin_response.stop_reason == "failure":
-                        original_task = plan.content if hasattr(plan, "content") else {}
                         request_message = AgentMessage(
                             sender = "ExecutionAgent",
                             receiver = "ToolSelectorAgent",
@@ -38,16 +33,14 @@ class ExecutionAgent(Agent):
                                 content=[MCPRequestMessage[dict](
                                     content = {
                                         "missing" : plugin_response.content[0].content,
-                                        "original_task": original_task
-                                    }
+                                    },
                                 )],
-                                selected_tool = None,
+                                origin_request = payload.origin_request,
+                                selected_tool = plugin_name,
                                 dag = message.id
-                            )
+                            ),
+                            stop_reason="need_more_data"
                         )
-                        print("=====Failed and new Request========")
-                        print(request_message)
-                        print("===================================")
                         yield [request_message]
                         continue             
 
@@ -72,4 +65,4 @@ class ExecutionAgent(Agent):
             self.logger.error(f"ExecutionAgent 에러: {e}", exc_info=True)
             response_message = MCPResponseMessage[str](content="ExecutionAgent 처리 중 시스템 오류가 발생했습니다.")
             response_payload = MCPResponse[str](content=[response_message])
-            yield [AgentMessage(sender="ExecutionAgent", receiver="user", payload=[response_payload])]
+            yield [AgentMessage(sender="ExecutionAgent", receiver="user", payload=[response_payload], id = message.id)]

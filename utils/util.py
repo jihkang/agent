@@ -1,3 +1,4 @@
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -145,3 +146,40 @@ def get_schema_from_class_path(cls_path: str) -> dict | None:
         schema = json.load(f)
 
     return schema
+
+def merge_agent_messages(previous_messages: List[AgentMessage], new_message: AgentMessage) -> AgentMessage:
+    """이전 AgentMessage 리스트와 새로운 AgentMessage를 병합."""
+    if not previous_messages:
+        return new_message
+
+    # 새로운 메시지 복사
+    merged_message = deepcopy(new_message)
+
+    for previous in previous_messages:
+        for prev_payload in previous.payload:
+            for new_payload in merged_message.payload:
+
+                # selected_tool 은 항상 new_message 기준 유지
+
+                # content 병합
+                prev_content_list = prev_payload.content
+                new_content_list = new_payload.content
+
+                merged_contents = []
+
+                # content는 MCPRequestMessage 리스트
+                for prev_content in prev_content_list:
+                    merged_content = deepcopy(prev_content.content)
+
+                    for new_content in new_content_list:
+                        for k, v in new_content.content.items():
+                            # 기존 값이 없으면 추가
+                            if k not in merged_content:
+                                merged_content[k] = v
+
+                    merged_contents.append(MCPRequestMessage(content=merged_content))
+
+                # 병합된 content 적용
+                new_payload.content = merged_contents
+
+    return merged_message

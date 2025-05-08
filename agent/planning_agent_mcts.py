@@ -1,3 +1,4 @@
+from copy import deepcopy
 import random
 from typing import Any, Dict, List
 from scheme.a2a_message import AgentMessage
@@ -17,8 +18,27 @@ class PlanningState:
         self.history.append(result)
 
     def set_result(self, parent_id: str, result: AgentMessage):
-        self.execution_results.get(parent_id, []).append(result)
+        if parent_id not in self.execution_results:
+            self.execution_results[parent_id] = []
 
+        self.execution_results[parent_id].append(deepcopy(result))
+
+    def pop_result(self, parent_id: str, remove_message: AgentMessage):
+        self.execution_results[parent_id].remove(remove_message)
+
+    def get_result_failure(self, parent_id: str) -> AgentMessage | None:
+        list_result = self.execution_results.get(parent_id, [])
+
+        cnt = len(list_result)
+        for i in range(cnt):
+            for msg in list_result[cnt - i - 1]:
+                if msg.stop_reason == "need_more_data":
+                    return msg
+
+        return None
+
+            
+    
     def get_result(self, parent_id: str) -> List[AgentMessage]:
         if (parent_id == "-1"):
             return []

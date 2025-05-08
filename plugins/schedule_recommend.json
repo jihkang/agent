@@ -1,4 +1,5 @@
 {
+    "request": "string",
     "city": "string",
     "weather": "string"
 }
