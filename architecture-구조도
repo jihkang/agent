@@ -1,47 +1,81 @@
-1. 사용자 입력
-    └─→ MCP Message Parser
-          └─→ MCPRequest 생성
+. 전체 개요
+이 시스템은 LLM 기반의 멀티 에이전트 시스템으로, 각 에이전트가 특정 역할을 수행하며 메시지를 주고받습니다. 다음과 같은 구조로 설계되어 있습니다:
 
-2. RouterAgent (중앙 이벤트 딜리게이터)
-    ├─→ ModeSelector
-    │    ├─ 판단: tool 기반 실행인지 plan 기반 실행인지 결정
-    │    ├─ "tool" 선택 시:
-    │    │    └─→ ToolSelector (LocalLLMSelector)
-    │    │          └─→ (plugin description 기반 유사도 검색)
-    │    │          └─→ 최종 tool_name 선택
-    │    │          └─→ PluginManager.run(tool_name)
-    │    │                 └─→ 선택된 Plugin 실행 (QA / Chat / Code / Tool ...)
-    │    │                        ├─→ LLM API / Tokenizer / GPU / 외부 기능 등 활용
-    │    │                 └─→ 결과 → Validator → MCPResponse
-    │
-    │    └─ "plan" 선택 시:
-    │         └─→ PlanningAgent
-    │               └─→ ExecutionPlan 생성 (예: [summarize, refine, respond])
-    │               └─→ step-by-step RouterAgent에 plan 전달
-    │                       └─ 각 step별 ToolSelector → PluginManager 실행
-    │                       └─ 실행 결과 → Validator → 다음 step or MCPResponse
+agent/ : 각 역할별 에이전트 정의 (기획, 선택, 실행 등)
 
+router.py : 에이전트 간 메시지를 중개하는 오케스트레이터
 
-+-------------------+       +-------------------+       +--------------------+
-|   PlanningAgent   | ---> |   ExecutionAgent   | ---> | execution_results  |
-| (id & dag 설정)  |       |  (id 유지)         |       | {id: 결과 AgentMsg} |
-+-------------------+       +-------------------+       +--------------------+
+plugin/ : 플러그인 로딩 및 실행을 위한 매니저 (PluginManager)
 
-     |                                                          ^
-     |                                                          |
-     +--------------------<-------------------------------------+
-                           다음 Planning 시 dag 로 이전 결과 조회
+plugins/ : 실제 도구(툴) 역할을 하는 개별 플러그인
 
+scheme/ : 메시지 포맷 정의 (MCPRequest, MCPResponse 등)
 
-3. PluginManager (Plugin as Broker)
-    ├─ 내부적으로 BaseAgent들을 lazy-load / LRU 관리
-    ├─ Plugin 종류:
-    │    ├─ Plugin: QA (LLM 기반)
-    │    ├─ Plugin: Chat (LLM 기반)
-    │    ├─ Plugin: Code (PyTorch 모델 사용)
-    │    ├─ Plugin: Tool (기타 기능)
-    └─ 각 Plugin은 다음 자원을 활용할 수 있음:
-         ├─ LLM API
-         ├─ Tokenizer
-         ├─ Local GPU
-         └─ 외부 기능 (e.g., web API, DB 등)
+2. 주요 구성 요소 설명
+2.1 Agent 구조 및 역할
+PlanningAgent
+사용자의 질문을 받아 LLM을 통해 직접 응답하거나, 필요한 외부 툴 사용 계획(plan)을 생성합니다. 사용 가능한 플러그인을 기반으로 툴 사용을 제안합니다.
+
+ToolSelectorAgent
+PlanningAgent가 제안한 작업을 기반으로 어떤 플러그인을 사용할지 선택합니다. PluginManager를 통해 가능한 도구 목록을 조회합니다.
+
+ExecutionAgent
+선택된 툴을 PluginManager를 통해 실행하고 결과를 포맷팅하여 반환합니다. MCPRequest → MCPResponse 형태의 메시지 변환을 수행합니다.
+
+Tool Agent (예: WeatherToolAgent)
+특정 툴의 기능을 독립된 에이전트로 구현한 예. 외부 API를 직접 호출하여 결과를 반환합니다.
+
+BaseAgent
+모든 에이전트의 기반 클래스. on_event() 메서드를 통해 메시지를 비동기로 처리합니다.
+
+2.2 Router: 메시지 흐름의 중심
+사용자의 메시지를 PlanningAgent로 전달
+
+PlanningAgent → ToolSelector → ExecutionAgent 순서로 메시지를 전달
+
+최종 응답을 user에게 전송
+
+WebSocket 기반으로 실시간 스트리밍 가능
+
+각 메시지는 AgentMessage 형식으로 주고받음 (sender, receiver 포함)
+
+3. PluginManager 및 플러그인 시스템
+자동 로딩: plugins 폴더 내 .py 파일을 자동 탐색 및 등록
+
+run(plugin_name, request) 인터페이스 제공: 에이전트는 플러그인 실행만 요청하면 됨
+
+플러그인 인터페이스: 표준화된 입력/출력 구조(MCPRequest → MCPResponse)
+
+확장성: 새로운 플러그인을 파일만 추가하면 바로 시스템에 적용 가능
+
+플러그인 유형:
+
+간단한 함수형 도구
+
+에이전트 기반 도구 (예: WeatherToolAgent)
+
+4. 시스템 아키텍처 흐름도 (UML 은 readme 를 참조)
+
+[User]
+   ↓
+[Router]
+   ↓
+[PlanningAgent] - uses LLM
+   ↓
+[ToolSelectorAgent] - selects plugin
+   ↓
+[ExecutionAgent] - runs plugin via PluginManager 
+   ↓
+[Plugin] or [ToolSelectorAgent]
+   ↓
+[Router]
+   ↓
+[User]
+5. 주요 기술 및 장단점 요약
+기술	설명	장점	단점
+asyncio	에이전트 간 비동기 메시지 처리	고성능 동시 처리, WebSocket과 최적화	코드 복잡도 증가, 디버깅 어려움
+FastAPI + WebSocket	사용자 실시간 통신	빠르고 실시간 양방향 가능	상태 관리 복잡
+PluginManager	도구(플러그인) 자동 로딩 및 실행	높은 확장성, 구조적 분리	플러그인 오류시 전체 영향 우려
+MCP 메시지 프로토콜	에이전트 간 통신 구조 표준화 (MCPRequest, MCPResponse)	일관된 인터페이스, 디버깅 용이	포맷에 맞춰야 하므로 학습 필요
+LLM 사용 (Model Class)	자연어 기반 계획 수립 및 도구 선택	유연하고 사람스러운 대응 가능	비결정성, 잘못된 도구 선택 위험
+자동 테스트/로깅	로깅 통일화 및 테스트용 DummyPluginManager 사용	유지보수 편리, 안정성 확보	LLM 출력 테스트의 어려움 (비결정성 문제)

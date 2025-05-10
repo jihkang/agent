@@ -21,3 +21,72 @@ python3 init.py
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 을 실행하면 확인 할 수 있음.
+
+클래스 다이어그램 
+```mermaid
+classDiagram
+    class Agent {
+        +on_event(input: AgentMessage) AsyncGenerator
+        +describe() str
+    }
+
+    class PlanningAgent {
+        +run(input: MCPRequest) MCPResponse
+        +use_model(prompt: str) str
+    }
+
+    class ToolSelectorAgent {
+        +select_tool(request: MCPRequest) str
+    }
+
+    class ExecutionAgent {
+        +execute_tool(tool_name: str, request: MCPRequest) MCPResponse
+    }
+
+    class ToolAgent {
+        +run_tool(request: MCPRequestMessage) MCPResponseMessage
+    }
+
+    class PluginManager {
+        +load_plugins()
+        +run(tool_name: str, request: MCPRequest) MCPResponse
+        +get_plugin_descriptions() List[str]
+    }
+
+    class Plugin {
+        +run(request: MCPRequest) MCPResponse
+    }
+
+    class Model {
+        +ask(prompt: str) str
+    }
+
+    class ApiModel {
+        +ask(prompt: str) str
+    }
+
+    class Router {
+        +on_event(user_input: dict, session_id: str)
+        +dispatch(agent_message: AgentMessage)
+    }
+
+    class "MCPRequest / MCPResponse" {
+        +content: Any
+        +metadata: dict
+    }
+
+    Agent <|-- PlanningAgent
+    Agent <|-- ToolSelectorAgent
+    Agent <|-- ExecutionAgent
+    Agent <|-- ToolAgent
+
+    PlanningAgent --> ApiModel : uses
+    ToolSelectorAgent --> Model : uses
+    PlanningAgent --> ToolSelectorAgent : calls
+    ToolSelectorAgent --> PluginManager : queries
+    ExecutionAgent --> PluginManager : uses
+    ExecutionAgent --> ToolAgent : may delegate
+    PluginManager --> Plugin : loads
+    Agent --> "MCPRequest / MCPResponse" : sends/receives
+    Router --> Agent : routes to
+```
