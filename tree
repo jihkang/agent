@@ -1,52 +1,84 @@
 .
+├── __pycache__
+│   ├── main.cpython-313.pyc
+│   └── router.cpython-313.pyc
 ├── agent
 │   ├── __init__.py
+│   ├── __pycache__
 │   ├── execution_agent.py
+│   ├── planning_agent_mcts.py
 │   ├── planning_agent.py
 │   ├── selector
-│   │   ├── __init__.py
-│   │   └── base.py
-│   ├── tool_agent.py
-│   └── validation_agent.py
-├── architecture
+│   └── tool_agent.py
 ├── architecture-구조도
+├── data
+│   └── models
 ├── init.py
 ├── LICENSE
+├── logs
+│   ├── DefaultModel_error.log
+│   ├── DefaultModel_info.log
+│   ├── ExecutionAgent_error.log
+│   ├── ExecutionAgent_info.log
+│   ├── PlanningAgent_error.log
+│   ├── PlanningAgent_info.log
+│   ├── Router_error.log
+│   ├── Router_info.log
+│   ├── schedule_recommend_agent_error.log
+│   ├── schedule_recommend_agent_info.log
+│   ├── toolAgent_error.log
+│   ├── toolAgent_info.log
+│   ├── weather_tool_agent_error.log
+│   └── weather_tool_agent_info.log
 ├── main.py
 ├── models
+│   ├── __pycache__
 │   └── model.py
 ├── plugin
 │   ├── __init__.py
+│   ├── __pycache__
 │   ├── base.py
 │   ├── manager.py
 │   ├── registry.py
 │   └── scanner.py
 ├── plugins
 │   ├── __init__.py
+│   ├── __pycache__
 │   ├── reserve.py
+│   ├── schedule_recommend.json
+│   ├── schedule_recommend.md
+│   ├── schedule_recommend.py
 │   ├── summarize.py
+│   ├── weather.json
+│   ├── weather.md
 │   └── weather.py
 ├── poetry.lock
 ├── pyproject.toml
 ├── readme
+├── requirements.txt
 ├── router.py
 ├── scheme
+│   ├── __pycache__
 │   ├── a2a_message.py
 │   └── mcp.py
 ├── static
-│   └── index.html
+│   ├── index.html
+│   └── index2.html
 ├── tests
 │   ├── __init__.py
+│   ├── __pycache__
 │   ├── test_planning_agent.py
-│   └── test_tool_agent.py
+│   ├── test_tool_agent.py
+│   └── test_util.py
 ├── tree
 ├── usage
 ├── utils
 │   ├── __init__.py
+│   ├── __pycache__
+│   ├── constant.py
 │   ├── env.py
 │   ├── logging.py
 │   └── util.py
 └── 아키텍처uml.png
-L2  [error opening dir]
 
-10 directories, 39 files
+21 directories, 61 files
