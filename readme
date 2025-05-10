@@ -23,48 +23,57 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 을 실행하면 확인 할 수 있음.
 
 클래스 다이어그램 
-```mermaid
 classDiagram
+    %% Base agent interface
     class Agent {
         +on_event(input: AgentMessage) AsyncGenerator
         +describe() str
     }
 
+    %% PlanningAgent: interprets user input using ApiModel
     class PlanningAgent {
         +run(input: MCPRequest) MCPResponse
         +use_model(prompt: str) str
     }
 
+    %% ToolSelectorAgent: selects which plugin to use
     class ToolSelectorAgent {
         +select_tool(request: MCPRequest) str
     }
 
+    %% ExecutionAgent: runs the selected plugin
     class ExecutionAgent {
         +execute_tool(tool_name: str, request: MCPRequest) MCPResponse
     }
 
+    %% ToolAgent: e.g., WeatherToolAgent
     class ToolAgent {
         +run_tool(request: MCPRequestMessage) MCPResponseMessage
     }
 
+    %% PluginManager: loads and runs plugins
     class PluginManager {
         +load_plugins()
         +run(tool_name: str, request: MCPRequest) MCPResponse
         +get_plugin_descriptions() List[str]
     }
 
+    %% Plugin: generic plugin interface
     class Plugin {
         +run(request: MCPRequest) MCPResponse
     }
 
+    %% Model: base LLM interface (local)
     class Model {
         +ask(prompt: str) str
     }
 
+    %% ApiModel: API-based LLM (not subclass of Model)
     class ApiModel {
         +ask(prompt: str) str
     }
 
+    %% Router: orchestrates messages between agents
     class Router {
         +on_event(user_input: dict, session_id: str)
         +dispatch(agent_message: AgentMessage)
@@ -89,4 +98,27 @@ classDiagram
     PluginManager --> Plugin : loads
     Agent --> "MCPRequest / MCPResponse" : sends/receives
     Router --> Agent : routes to
-```
+
+시퀀스 다이어 그램 
+
+sequenceDiagram
+    participant User
+    participant Router
+    participant PlanningAgent
+    participant ToolSelectorAgent
+    participant ExecutionAgent
+    participant PluginManager
+    participant WeatherTool
+
+    User->>Router: Example: "What's the weather like in Seoul?"
+    Router->>PlanningAgent: AgentMessage(user message)
+    PlanningAgent->>ToolSelectorAgent: select_tool("weather")
+    ToolSelectorAgent->>PluginManager: get_plugin_list()
+    ToolSelectorAgent-->>PlanningAgent: selected_tool="weather"
+    PlanningAgent->>ExecutionAgent: execute("weather", city="Seoul")
+    ExecutionAgent->>PluginManager: run("weather", request)
+    PluginManager->>WeatherTool: run_tool(city="Seoul")
+    WeatherTool-->>PluginManager: MCPResponse(weather="clear", temp=23)
+    PluginManager-->>ExecutionAgent: MCPResponse(...)
+    ExecutionAgent-->>Router: AgentMessage(response)
+    Router-->>User: "Seoul's weather is clear, 23°C"
