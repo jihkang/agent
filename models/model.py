@@ -69,8 +69,10 @@ class ApiModel:
                         for part in parts:
                             if "text" in part:
                                 content.append(part["text"])
+                    
                     if not all(isinstance(x, str) for x in content):
                         raise ValueError("응답 content에 문자열이 아닌 요소가 포함되어 있음")
+                     
                     
                     return convert_to_agent_message_api(request_sender, content)
 

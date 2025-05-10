@@ -50,32 +50,34 @@
             word-wrap: break-word;
             font-size: 14px;
         }
+        #loading {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0px;
+            left: 0px;
+            background-color: rgba(80, 80, 80, 0.2);
+        }
     </style>
 </head>
 <body>
 
 <h2>LLM Router WebSocket Test</h2>
-
-<input type="text" id="content" value="recommend schedule in seoul with weather">
-<button onclick="sendRequest()">Send</button>
-<button onclick="clearMessage()">Clear</button>
+<div>
+    <input type="text" id="content" value="recommend for schedule with seoul's weather">
+    <button onclick="sendRequest()">Send</button>
+    <button onclick="clearMessage()">Clear</button>
+</div>
 
 <pre id="output"></pre>
 
 <script>
-    const socket = new WebSocket("ws://192.168.35.229:8000/ws");
+    const socket = new WebSocket("ws://localhost:8000/ws");
 
     socket.onmessage = function(event) {
-        try {
-            const msg = JSON.parse(event.data);
-            const sender = Object.keys(msg)[0];
-            for (let i = 0; i < msg[sender].content.length; i++)
-            {
-                document.getElementById("output").textContent += `[${sender}]\n: ${JSON.stringify(msg[sender].content)}\n\n`; 
-            }
-        } catch (e) {
-            console.log(e)
-        }
+        const msg = JSON.parse(event.data);
+        msg.payload[0].content.content,
+        document.getElementById("output").textContent += msg.payload[0].content[0].content + "\n";
     };
 
     socket.onopen = function() {
@@ -88,7 +90,7 @@
 
     socket.onclose = function() {
         console.log("WebSocket 연결 종료됨.");
-        // window.location.reload(); // 페이지 새로고침
+        window.location.reload(); // 페이지 새로고침
     };
 
     function sendRequest() {

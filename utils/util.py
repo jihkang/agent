@@ -2,12 +2,14 @@ from copy import deepcopy
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import importlib
-from typing import Any, List
+from typing import Any, List, Union
 from scheme.a2a_message import AgentMessage
-from scheme.mcp import MCPRequest, MCPRequestMessage, MCPResponse, MCPResponseMessage
+from scheme.mcp import MCPRequest, MCPRequestMessage
+from utils.constant import SUCCESS
 from utils.logging import setup_logger
 
 
@@ -45,6 +47,11 @@ def check_file(path: str, filename: str = "") -> bool:
     return any(path.rglob(filename))
 
 
+def fix_json_keys(response_text: str) -> str:
+    # 따옴표 없는 키를 쌍따옴표로 감싸줌
+    fixed = re.sub(r'([{,]\s*)([a-zA-Z0-9_]+)\s*:', r'\1"\2":', response_text)
+    return fixed
+
 def convert_to_agent_message_local(response_text: List[str]) -> List[MCPRequest]:
     logger = setup_logger("DefaultModel")
     messages = []
@@ -55,14 +62,18 @@ def convert_to_agent_message_local(response_text: List[str]) -> List[MCPRequest]
                 response = response.lstrip("```json").rstrip("```").strip()
             elif response.startswith("```"):
                 response = response.lstrip("```").rstrip("```").strip()
-        
+            response = fix_json_keys(response)
             parsed_response = json.loads(response)
-            print(parsed_response)
 
             selected_tool = parsed_response.get("selected_tool", "")
             task_content = parsed_response.get("content")
-        
-            payload_obj = MCPRequest[type(task_content)](content=[MCPRequestMessage[type(task_content)](content=task_content)], selected_tool=selected_tool, dag=-1)
+            metadata = parsed_response.get("metadata")
+            payload_obj = MCPRequest(
+                content=[
+                    MCPRequestMessage(content=task_content, metadata=metadata)
+                ],
+                selected_tool=selected_tool,
+            )
             messages.append(payload_obj)
 
     except json.JSONDecodeError as e:
@@ -81,7 +92,7 @@ def convert_to_agent_message_api(request_sender: str, response_text: List[str]) 
                 response = response.lstrip("```json").rstrip("```").strip()
             elif response.startswith("```"):
                 response = response.lstrip("```").rstrip("```").strip()
-
+            response = fix_json_keys(response)
             parsed_response = json.loads(response)
 
             for item in parsed_response:
@@ -94,18 +105,21 @@ def convert_to_agent_message_api(request_sender: str, response_text: List[str]) 
                     if isinstance(data, dict):
                         if receiver == "user":
                             payload_objs.append(
-                                MCPResponse(content=[MCPResponseMessage(**data)])
+                                MCPRequest(content=[MCPRequestMessage(**data)])
                             )
                         else:
                             payload_objs.append(
                                 MCPRequest(content=[MCPRequestMessage(**data)])
                             )
-
+                
                 agent_message = AgentMessage(
                     id = id,
                     sender=sender,
                     receiver=receiver,
-                    payload=payload_objs
+                    payload=payload_objs,
+                    dag=item.get("dag", id),
+                    origin_request="",
+                    stop_reason=SUCCESS
                 )
 
                 agent_messages.append(agent_message)
@@ -116,16 +130,6 @@ def convert_to_agent_message_api(request_sender: str, response_text: List[str]) 
         print(f"[convert_to_agent_message] 알 수 없는 에러: {e}")
 
     return agent_messages
-
-
-def add_request(data: AgentMessage) -> bool:
-    for payload in data.payload:
-        if isinstance(payload, MCPResponse):
-            result =  getattr(payload, "stop_reason", "")
-            if result is "done" or result is "failure": 
-                return False
-
-    return True
 
 def get_schema_from_class_path(cls_path: str) -> dict | None:
     """
@@ -147,36 +151,47 @@ def get_schema_from_class_path(cls_path: str) -> dict | None:
 
     return schema
 
-def merge_agent_messages(previous_messages: List[AgentMessage], new_message: AgentMessage) -> AgentMessage:
-    """이전 AgentMessage 리스트와 새로운 AgentMessage를 병합."""
-   
-def merge_agent_messages(previous_messages: List[AgentMessage], new_message: AgentMessage) -> AgentMessage:
-    """이전 AgentMessage 리스트와 새로운 AgentMessage를 병합."""
+def get_description_from_class_path(cls_path: str) -> dict | None:
+    """
+    cls_path를 받아서 동일 경로의 md(플러그인의 설명)파일을 읽어온다.
+    없으면 None 반환
+    """
+    # 1. 'plugins.my_plugin.MyPlugin' -> 'plugins/my_plugin.json' 변환
+    path_parts = cls_path.split(".")
+    dir_path = os.path.join(*path_parts[:-1])  # 파일명 제외
+    description_path = f"{dir_path}.md"
 
-    if not previous_messages:
-        return deepcopy(new_message)  # 그냥 새 메시지를 반환
+    # 2. 파일 존재 여부 확인 없으면 어떤 응답이던 상관없음.
+    if not os.path.exists(description_path):
+        return ""
 
-    # 새로운 메시지 복사 (deepcopy 필수!)
-    merged_message = deepcopy(new_message)
+    # 3. 파일 읽기
+    with open(description_path, "r", encoding="utf-8") as f:
+        description = f.read()
 
-    # content를 병합할 dict 생성
-    merged_content = {}
+    return description
 
-    for previous in previous_messages:
-        for prev_payload in previous.payload:
-            for prev_content in prev_payload.content:
-                if hasattr(prev_content, "content"):
-                    for k, v in prev_content.content.items():
-                        merged_content[k] = v  # 이전 값 저장
 
-    # 이제 new_message 의 content를 덮어씌움
-    for new_payload in merged_message.payload:
-        for new_content in new_payload.content:
-            if hasattr(new_content, "content"):
-                for k, v in new_content.content.items():
-                    merged_content[k] = v  # 새로운 값으로 overwrite
+def merge_metadata_only(prev: AgentMessage, current: AgentMessage) -> AgentMessage:
+    new_msg = deepcopy(current)
+    
+    prev_metadata = getattr(prev.payload[0].content[0], "metadata", {}) or {}
+    curr_message = new_msg.payload[0].content[0]
 
-        # content는 **무조건 하나짜리 리스트**로 유지
-        new_payload.content = [MCPRequestMessage(content=merged_content)]
+    # metadata 병합 (current 우선)
+    merged_metadata = {**prev_metadata, **curr_message.metadata}
+    curr_message.metadata = merged_metadata
+    
+    return new_msg
 
-    return merged_message
+def flatten_agent_messages(data: Union[AgentMessage, List[AgentMessage], List[List[AgentMessage]]]) -> List[AgentMessage]:
+    """AgentMessage 또는 중첩된 리스트를 평탄화하여 List[AgentMessage]로 반환"""
+    if isinstance(data, AgentMessage):
+        return [data]
+    elif isinstance(data, list):
+        result = []
+        for item in data:
+            result.extend(flatten_agent_messages(item))
+        return result
+    else:
+        raise TypeError(f"[flatten_agent_messages] Invalid type: {type(data)}")

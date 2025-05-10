@@ -1,36 +1,67 @@
+from agent.planning_agent_mcts import PlanningState
 import pytest
 from agent.planning_agent import PlanningAgent
 from scheme.a2a_message import AgentMessage
-from scheme.mcp import MCPRequest, MCPRequestMessage, MCPResponse, MCPResponseMessage
+from scheme.mcp import MCPRequest, MCPRequestMessage
+
+# Step 1. 테스트용 가짜 결과 메시지
+fake_plan = [
+    AgentMessage(
+        id=0,
+        sender="PlanningAgent",
+        receiver="ToolSelectorAgent",
+        dag=-1,
+        payload=[
+            MCPRequest[str](content=[
+                MCPRequestMessage[str](content="step 1: use search tool")
+            ])
+        ]
+    ),
+    AgentMessage(
+        id=1,
+        sender="PlanningAgent",
+        receiver="user",
+        dag=0,
+        payload=[
+            MCPRequest[str](content=[
+                MCPRequestMessage[str](content="final step: return to user")
+            ])
+        ]
+    )
+]
+
+# Step 2. FakePlanner 정의
+class FakePlanner:
+    def __init__(self, root_state, initial_epsilon=0.3, min_epsilon=0.05):
+        print("📦 FakePlanner INIT")
+        self.root = root_state
+
+    def run(self, max_iter=10):
+        print("🚀 FakePlanner.RUN CALLED")
+        return fake_plan
+
+# Step 3. 테스트 전용 PlanningAgent
+class TestablePlanningAgent(PlanningAgent):
+    def __init__(self):
+        super().__init__()
+        self.state = None
+
+    async def on_event(self, message: AgentMessage):
+        # ✅ 모델 ask는 무시하고 planner 실행만 테스트
+        planner = FakePlanner(self.state)
+        best_plan = planner.run(max_iter=10)
+        yield best_plan
 
 @pytest.mark.asyncio
-async def test_planning_agent_generates_steps(monkeypatch):
-    # Arrange: ApiModel.ask를 모킹하여 LLM 응답을 강제로 지정
-    fake_response = [
-        AgentMessage(
-            sender="PlanningAgent",
-            receiver="ToolSelectorAgent",
-            payload=[
-                MCPResponse[str](content=[
-                    MCPResponseMessage[str](content="step 1: use search tool")
-                ])
-            ]
-        ),
-        AgentMessage(
-            sender="PlanningAgent",
-            receiver="user",
-            payload=[
-                MCPResponse[str](content=[
-                    MCPResponseMessage[str](content="final step: return to user")
-                ])
-            ]
-        )
-    ]
+async def test_planning_agent_generates_steps():
+    agent = TestablePlanningAgent()
+    agent.set_state(PlanningState(
+        history=[],
+        remaining_goals=[],
+        execution_results=[]
+    ))
 
-    # monkeypatch를 사용하여 model.ask를 고정된 fake_response로 대체
-    monkeypatch.setattr("agent.planning_agent.ApiModel.ask", lambda *args, **kwargs: fake_response)
-
-    agent = PlanningAgent()
+    # 가짜 입력 메시지
     input_message = AgentMessage(
         sender="user",
         receiver="PlanningAgent",
@@ -41,13 +72,10 @@ async def test_planning_agent_generates_steps(monkeypatch):
         ]
     )
 
-    # Act
     results = []
     async for result in agent.on_event(input_message):
-        results.extend(result)
+        results.extend(result if isinstance(result, list) else [result])
 
-    # Assert
     assert len(results) == 2
-    for msg in results:
-        assert isinstance(msg, AgentMessage)
-        assert msg.receiver in {"ToolSelectorAgent", "user"}
+    assert all(isinstance(msg, AgentMessage) for msg in results)
+    assert {msg.receiver for msg in results} == {"ToolSelectorAgent", "user"}

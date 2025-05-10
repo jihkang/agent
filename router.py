@@ -3,29 +3,18 @@ from collections import deque
 from collections.abc import AsyncGenerator
 from copy import deepcopy
 import datetime
-from typing import Deque, Dict, List
+from typing import Deque, Dict
 from agent.planning_agent_mcts import PlanningState
+from agent.selector.base import Agent
 from scheme.a2a_message import AgentMessage
 from scheme.mcp import MCPRequest, MCPRequestMessage
 from agent.tool_agent import ToolSelectorAgent
 from agent.planning_agent import PlanningAgent
 from agent.execution_agent import ExecutionAgent
-from agent.validation_agent import ValidationAgent
 from plugin.manager import PluginManager
+from utils.constant import FAIL, MAX_RETRIES, SPECIAL_ROUTER, SUCCESS
 from utils.logging import setup_logger
-from utils.util import merge_agent_messages
-
-RECEIVER_PRIORITY = {
-    "PlanningAgent": 1,
-    "ToolSelectorAgent": 2,
-    "ExecutionAgent": 3,
-    "Router": 4,
-    "user": 5,
-    "fail": 6
-}
-
-SPECIAL_ROUTER = ["user", "Router"]
-MAX_ITERATIONS = 100
+from utils.util import merge_metadata_only
 
 class Router:
     def __init__(self, plugin_manager: PluginManager):
@@ -33,7 +22,6 @@ class Router:
             "PlanningAgent": PlanningAgent(),
             "ToolSelectorAgent": ToolSelectorAgent(plugin_manager),
             "ExecutionAgent": ExecutionAgent(plugin_manager),
-            "ValidationAgent": ValidationAgent(),
         }
         self.logger = setup_logger("Router")
         self.sessions: Dict[str, PlanningState] = {}
@@ -43,106 +31,184 @@ class Router:
         async with self.lock:
             self._update_session_state(session_id, state)
 
-    async def on_event(self, user_request: dict, session_id: str = "default") -> AsyncGenerator[List[AgentMessage]]:
+    async def route(self, plan_queue: Deque[AgentMessage], msg: AgentMessage, receiver: str, state: PlanningState):
+        agent = self.agents[receiver]
+
+        try:
+            async for result in agent.on_event(msg):
+                print(f"[Router] {receiver}의 on_event 결과:", result)
+                
+                # result가 비었을 경우 처리 
+                if not result:
+                    continue
+    
+                if isinstance(result, AgentMessage):
+                    yield result
+                    self._process_agent_message(result, plan_queue, msg, state)
+                else:
+                    self.logger.warning(f"[Router] 예상치 못한 결과 타입: {type(result)}")
+
+        except Exception as e:
+            import traceback
+            self.logger.error(f"{receiver} route 처리 중 에러: {e}")
+            self.logger.error(traceback.format_exc())
+            
+            # 에러 응답 생성
+            response_message = MCPRequestMessage[dict](content=f"에러 발생: {str(e)}", metadata={})
+            response_payload = MCPRequest[dict](content=[response_message])
+            error_msg = AgentMessage(
+                sender=receiver, 
+                receiver="user", 
+                id=msg.id,
+                payload=[response_payload],
+                retries=0,
+                dag=-msg.dag,
+                stop_reason=FAIL
+            )
+            yield error_msg
+            
+    def _process_agent_message(self, plan: AgentMessage, plan_queue: Deque[AgentMessage], msg: AgentMessage, state: PlanningState):
+        """AgentMessage 처리 로직을 분리하여 코드 중복을 방지합니다."""
+        if not plan.payload or len(plan.payload) == 0:
+            print("[Router] payload 비어있음. 스킵:", plan)
+            return
+        
+        stop_reason = getattr(plan.payload[0], "stop_reason", "")
+        if plan.sender == "ExecutionAgent":
+            print(stop_reason, plan.payload)
+            if stop_reason == FAIL:
+                return
+            
+            state.set_result(plan.id, plan)
+            
+            if stop_reason == SUCCESS:
+                need_more_msg = state.get_result_failure(msg.id)
+                
+                if need_more_msg is not None:
+                    plan_queue.appendleft(need_more_msg)
+                    state.pop_result(msg.id, need_more_msg)
+            return
+        else:
+            state.set_history(plan)
+            if plan.receiver in SPECIAL_ROUTER:
+                return  # 🔥 user, Router인 경우 더 이상 진행 안 함
+            elif plan.receiver == "PlanningAgent":
+                plan_queue.append(plan)
+            else:
+                plan_queue.appendleft(plan)
+
+    async def on_event(self, user_request: dict, session_id: str = "default") -> AsyncGenerator[AgentMessage]:
+        print(user_request["content"])
         initial_message = AgentMessage(
             sender="user", receiver="PlanningAgent",
-            payload=[MCPRequest[str](content=[MCPRequestMessage[str](**user_request)])]
+            origin_request = user_request["content"],
+            payload=[MCPRequest[dict](content=[MCPRequestMessage[dict](**user_request)])]
         )
         print(initial_message)
         async with self.lock:
             if session_id not in self.sessions:
                 self.sessions[session_id] = PlanningState(
-                    history=[], remaining_goals=[], execution_results=[]
+                    history=[], remaining_goals=[], execution_results={}
                 )
 
             state = deepcopy(self.sessions[session_id])
-        self.agents["PlanningAgent"].set_state(state)
+            self.agents["PlanningAgent"].set_state(state)
 
         plan_queue: Deque[AgentMessage] = deque()
 
         try:
             async for plan_result in self.agents["PlanningAgent"].on_event(initial_message):
-                plan_result = plan_result if isinstance(plan_result, list) else [plan_result]    
+                plan_result = plan_result if isinstance(plan_result, list) else [plan_result]
                 for new_plan in plan_result:
-                    yield [new_plan]
-                    plan_queue.append(new_plan)
+                    # new_plan이 리스트인 경우 처리
+                    if isinstance(new_plan, list):
+                        for item in new_plan:
+                            if isinstance(item, AgentMessage):
+                                if item.receiver == "user":
+                                    # yield item
+                                    continue
+                                plan_queue.append(item)
+                    else:
+                        if new_plan.receiver == "user":
+                            continue
+                        plan_queue.append(new_plan)
         except Exception as e:
             self.logger.error(f"PlanningAgent 예외: {e}", exc_info=True)
             return
-    
+        print(plan_queue)
         self.sessions[session_id] = self.agents["PlanningAgent"].get_state()
         state = self.sessions[session_id]
-        idx = 0
+        
+        cur = datetime.datetime.now()
+        print(f"start time : {cur}")
         while plan_queue:
-            idx += 1
-            if (idx > MAX_ITERATIONS):
-                return 
-            
-            msg = plan_queue.popleft()
-            receiver = msg.receiver or ""
             try:
+                msg = plan_queue.popleft()
+                
+                # ✅ 리스트라면 flatten (이전 플랜 결과가 잘못 들어간 경우 대응)
+                while isinstance(msg, list):
+                    if not msg:
+                        msg = None
+                        break  # <- continue가 아니라 loop 탈출
+                    for m in reversed(msg[1:]):
+                        plan_queue.appendleft(m)
+                    msg = msg[0]
+                
+                if msg == None:
+                    continue
+
+                receiver = msg.receiver
+                if msg.retries > MAX_RETRIES:
+                    print(msg)
+                    raise Exception(f"요청이 {MAX_RETRIES}회 이상 실패하였습니다. 다시 시도해주세요.")
+
+                combined_msg = msg
+                if msg.dag != -1:
+                    previous_msg = state.get_result(msg.dag)
+
+                    if len(previous_msg) == 0:
+                        msg.retries += 1
+                        plan_queue.append(msg)
+                        continue
+                     
+                    combined_msg = merge_metadata_only(previous_msg[-1], msg)
+                
+                print("[Before Router]===================")
+                print(combined_msg)
+                print("==================================")
+
                 if receiver in SPECIAL_ROUTER:
                     self._update_session_state(session_id, state)
                     continue
 
                 if receiver in self.agents:
-                    agent = self.agents[receiver]
-
                     print(f"[Router] {receiver}의 on_event 호출 준비")
-                    async for result in agent.on_event(msg):
-                        print(f"[Router] {receiver}의 on_event 결과:", result)
-                        result_list = result if isinstance(result, list) else [result]
+                    async for step_result in self.route(plan_queue, combined_msg, receiver, state):
+                        self._update_session_state(session_id, state)
                         
-                        for plan in result_list:
-                            if not isinstance(plan, AgentMessage):
-                                raise TypeError("[Router] Agent가 AgentMessage 아닌 객체를 반환했습니다.")
-
-                            if plan.sender == "ExecutionAgent":
-                                state.set_result(plan.id, plan)
-                                stop_reason = getattr(plan.payload[0], "stop_reason", "")
-                                if stop_reason == "failure":
-                                    pass
-
-                                if stop_reason != "need_more_data":
-                                    need_more_msg = state.get_result_failure(msg.id)
-                                    if need_more_msg:
-                                        combined_message = merge_agent_messages(need_more_msg, plan)
-                                        retry_task = AgentMessage(
-                                            sender="Router",
-                                            receiver="ExecutionAgent",
-                                            id=plan.id,
-                                            payload=combined_message.payload
-                                        )
-                                        
-                                        plan_queue.appendleft(retry_task)
-                                        state.pop_result(need_more_msg)
-
-                                    plan_queue.appendleft(plan)
-                                    continue
-                            else:
-                                state.set_history(plan)
-
-                            if plan.receiver in SPECIAL_ROUTER:
-                                continue 
-
-                            if plan.receiver == "PlanningAgent":
-                                plan_queue.append(plan)
-                            else:
-                                plan_queue.appendleft(plan) 
-                            
-                        yield result_list
+                        yield step_result
 
                 else:
                     self.logger.error(f"알 수 없는 receiver {receiver}")
 
+                end = datetime.datetime.now()
+                if end - cur > datetime.timedelta(minutes=3):
+                    raise Exception("너무 오래지속 되는것으로 판단하고 종료 합니다.")
+
             except Exception as e:
                 self.logger.error(f"{receiver} 처리 중 에러: {e}", exc_info=True)
-                yield [e]
-
+                response_message = MCPRequestMessage(content=f"에러 발생: {str(e)}", metadata = {})
+                response_payload = MCPRequest(content=[response_message])
+                yield AgentMessage(sender=receiver, receiver="user", payload=[response_payload], stop_reason=FAIL)
+        
+        print("[done]")
 
     def _update_session_state(self, session_id: str, new_state: PlanningState):
         """세션 상태 병합 로직"""
         existing = self.sessions[session_id]
-        existing.history = list({msg.id: msg for msg in existing.history + new_state.history}.values())
-        existing.remaining_goals = [g for g in new_state.remaining_goals if g not in existing.history]
-        existing.execution_results.extend(new_state.execution_results)
+        
+        existing.init_args(
+            history=list({msg.id: msg for msg in existing.history + new_state.history}.values()),
+            remaining_goals = [g for g in new_state.remaining_goals if g not in existing.history]
+        ) 
+        existing.update_execute(new_state.execution_results)

@@ -1,7 +1,9 @@
 {
-    "request": "string",
-    "latitude": "string",
-    "longitude": "string", 
-    "city": "string",
-    "date": "date"
+    "content": "string",
+    "metadata": {
+        "latitude": "string",
+        "longitude": "string", 
+        "city": "string",
+        "date": "date"
+    }
 }

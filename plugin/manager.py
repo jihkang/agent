@@ -5,8 +5,8 @@ from typing import Any, List, Tuple
 from agent.selector.base import Agent
 from plugin.registry import PLUGIN_REGISTRY
 from plugin.scanner import register_scan_directory
-from scheme.mcp import MCPRequest, MCPResponse
-from utils.util import get_schema_from_class_path
+from scheme.mcp import MCPRequest
+from utils.util import get_description_from_class_path
 from .base import BaseAgent
 
 
@@ -52,7 +52,7 @@ class PluginManager:
         self._loaded_plugins[name] = instance
         return instance
 
-    async def run(self, name: str, request) -> MCPResponse[Any] | MCPRequest[Any]:
+    async def run(self, name: str, request) -> MCPRequest[Any] | MCPRequest[Any]:
         """
         지정된 플러그인을 실행하여 결과 반환
         """
@@ -71,7 +71,7 @@ class PluginManager:
         return [name for name in PLUGIN_REGISTRY.keys()]
     
     def pair_registry_execute_info(self) -> List[str]:
-        return [f"{name} - {get_schema_from_class_path(PLUGIN_REGISTRY[name])}" if get_schema_from_class_path(PLUGIN_REGISTRY[name]) else "" for name in PLUGIN_REGISTRY.keys()]
+        return [f"{name} - {get_description_from_class_path(PLUGIN_REGISTRY[name])}" if get_description_from_class_path(PLUGIN_REGISTRY[name]) else "" for name in PLUGIN_REGISTRY.keys()]
     
     
     def unload(self, name: str) -> None:

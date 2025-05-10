@@ -1,9 +1,8 @@
-
 import os
-from llama_cpp import Any
 import requests
 from plugin.base import BaseAgent
-from scheme.mcp import MCPRequest, MCPResponse, MCPResponseMessage
+from scheme.mcp import MCPRequest, MCPRequestMessage
+from utils.constant import FAIL, MORE_DATA, SUCCESS
 from utils.env import load_dotenv
 from utils.logging import setup_logger
 
@@ -15,57 +14,76 @@ class WeatherToolAgent(BaseAgent):
         self.api_key = os.getenv("OPENWEATHER_API_KEY", "")
         self.api_url = "http://api.openweathermap.org/data/2.5/weather"
 
-    # """ weather info """
     @staticmethod
     def plugin_name():
         return f"WeatherToolAgent"
 
-    async def run(self, input_data):
+    async def run(self, input_data: MCPRequestMessage):
         try:
-            request_content = input_data.content  # Assuming single message
-        
-            # 도시 이름 추출
-            city = request_content.get("city", None)
+            request = input_data.content
+            metadata = input_data.metadata
             missing = {}
+
+            print("Weather plugin=================")
+            print(request, metadata)
+            print("===============================")
+
+            try:
+                city = metadata["city"]
+            except Exception:
+                city = None
+
             if not city:
-                missing["city"] = "string";
+                missing["city"] = "string"
                 raise ValueError(missing)
-            
+
             params = {
                 "q": city,
                 "appid": self.api_key,
                 "units": "metric",
-                "lang": "kr" 
+                "lang": "en"  # changed to 'en' for English descriptions
             }
-            
+
             if self.api_key == "":
-                weather = "맑음"
+                # Fallback response
+                weather = "Clear"
                 temp = "22"
-                content = f"{city}의 현재 날씨는 '{weather}', 온도는 {temp}°C입니다."
+                content = {
+                    "content": f"The current weather in {city} is '{weather}', with a temperature of {temp}°C.",
+                    "city": city,
+                    "weather": weather,
+                    "temp": temp,
+                }
             else:
                 response = requests.get(self.api_url, params=params)
                 if response.status_code != 200:
-                    content = f"날씨 정보를 가져오는 데 실패했습니다. 상태코드: {response.status_code}"
+                    content = {
+                        "content": f"Failed to retrieve weather information. Status code: {response.status_code}",
+                        "city": city
+                    }
                 else:
                     data = response.json()
                     weather = data['weather'][0]['description']
                     temp = data['main']['temp']
                     content = {
-                        "request": input_data.request,
-                        content: f"{city}의 현재 날씨는 '{weather}', 온도는 {temp}°C입니다.",
-                        city: city,
-                        weather: weather,
+                        "content": f"The current weather in {city} is '{weather}', with a temperature of {temp}°C.",
+                        "city": city,
+                        "weather": weather,
+                        "temp": temp
                     }
 
-            mcp_response_msg = MCPResponseMessage[dict](content=content)
-            return MCPResponse[dict](content=[mcp_response_msg], dag= -1)
+            mcp_response_msg = MCPRequestMessage[dict](content=request, metadata=content)
+            return MCPRequest[dict](content=[mcp_response_msg], selected_tool=self.plugin_name(), stop_reason=SUCCESS)
+
         except ValueError as v:
-            content = v
-            content["request"] = input_data.request
-            response = MCPRequest(content=content)
-            return MCPResponse[dict](content=[response], dag=-1, stop_reason="need_more_data")
-        
+            self.logger.error(f"WeatherToolAgent error: {v}", exc_info=True)
+            response = MCPRequestMessage(content=request, metadata=metadata)
+            return MCPRequest[dict](content=[response], selected_tool=self.plugin_name(), stop_reason=MORE_DATA)
+
         except Exception as e:
-            self.logger.error(f"WeatherToolAgent 오류: {e}", exc_info=True)
-            error_response = MCPResponseMessage[str](content="날씨 정보를 처리하는 도중 오류가 발생했습니다.")
-            return MCPResponse[str](content=[error_response], dag = -1, stop_reason="failure")
+            self.logger.error(f"WeatherToolAgent error: {e}", exc_info=True)
+            error_response = MCPRequestMessage[dict](
+                content="An error occurred while processing weather information.",
+                metadata={}
+            )
+            return MCPRequest[dict](content=[error_response], selected_tool=self.plugin_name(), stop_reason=FAIL)

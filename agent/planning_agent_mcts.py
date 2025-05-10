@@ -1,67 +1,98 @@
-from copy import deepcopy
 import random
-from typing import Any, Dict, List
+from typing import Dict, List, Union
 from scheme.a2a_message import AgentMessage
+from utils.constant import FAIL, SUCCESS
 
 class PlanningState:
-    history: List[AgentMessage]
-    remaining_goals: List[AgentMessage]
-    execution_results: Dict[str, List[AgentMessage]]
+    history: List[AgentMessage] = []
+    remaining_goals: List[AgentMessage] = []
+    execution_results: Dict[int, List[AgentMessage]] = {}
 
     def __init__(self, history: List[AgentMessage],
-            remaining_goals: List[AgentMessage], execution_results: Dict[str, List[AgentMessage]]):
+            remaining_goals: List[AgentMessage], execution_results: Dict[str, List[AgentMessage]] = {}):
         self.history = history
         self.remaining_goals = remaining_goals
         self.execution_results = execution_results
 
-    def set_history(self, result: AgentMessage):
+
+    def init_args(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def set_history(self, result: Union[AgentMessage | List[AgentMessage]]):
+        if isinstance(result, list):
+            self.history.extend(result)
+            return 
+        
         self.history.append(result)
 
-    def set_result(self, parent_id: str, result: AgentMessage):
-        if parent_id not in self.execution_results:
+    def set_goals(self, result: Union[AgentMessage | List[AgentMessage]]):
+        if isinstance(result, list):
+            self.remaining_goals.extend(result)
+            return 
+        
+        self.remaining_goals.append(result)
+
+    def set_result(self, parent_id: int, result: AgentMessage):
+        if not parent_id in self.execution_results:
             self.execution_results[parent_id] = []
+    
+        state = self.execution_results[parent_id]
+        
+        if result in state:
+            print(f"[set_result] Duplicate detected — skipping")
+            return
 
-        self.execution_results[parent_id].append(deepcopy(result))
+        self.execution_results[parent_id].append(result)
 
-    def pop_result(self, parent_id: str, remove_message: AgentMessage):
+    def update_execute(self, new_state: Dict[int, List[AgentMessage]]):
+        for k, v in new_state.items():
+            if k in self.execution_results:
+                for value in v:
+                    if value not in self.execution_results[k]:
+                        self.execution_results[k].extend(v)
+            else:
+                self.execution_results[k] = v
+
+    def pop_result(self, parent_id: int, remove_message: AgentMessage):
+        if not parent_id in self.execution_results:
+            return 
+        
         self.execution_results[parent_id].remove(remove_message)
 
-    def get_result_failure(self, parent_id: str) -> AgentMessage | None:
+    def get_result_failure(self, parent_id: int) -> AgentMessage | None:
+        if not parent_id in self.execution_results:
+            return None
+        
         list_result = self.execution_results.get(parent_id, [])
-
-        cnt = len(list_result)
-        for i in range(cnt):
-            for msg in list_result[cnt - i - 1]:
-                if msg.stop_reason == "need_more_data":
-                    return msg
-
+        
+        for p in list_result:
+            if p.stop_reason == FAIL:
+                return p
+                
         return None
-
-            
     
-    def get_result(self, parent_id: str) -> List[AgentMessage]:
-        if (parent_id == "-1"):
+    def get_result(self, parent_id: int) -> List[AgentMessage]:
+        if parent_id == -1 or not parent_id in self.execution_results:
             return []
         
         return self.execution_results[parent_id]
 
-    def get_dag_prompt(self, dag: str) -> str:
-        contents = [
-            element  # 최종 문자열 요소
-            for msg in self.execution_results.get(dag, [])
-            for item in msg.payload.content  # payload.content 순회
-            for content in item.content       # content.content 순회 (리스트)
-            for element in content            # content.content 내 각 요소 순회
-        ]
+    def get_success_all_results(self, key: int = -5) -> List[AgentMessage]:
+        result = []
+        for k, v in self.execution_results.items():
+            if key == -5:
+                result.extend(v)
+            elif key == k:
+                result.extend(v)
+            
+        return result
 
-        return "".join(contents)
-    
 
 def evaluate_plan(history: List[AgentMessage]) -> float:
     score = -len(history)
     if history and history[-1].receiver == "user":
         score += 5
-    if any(step.receiver == "fail" for step in history):
+    if any(step.receiver != SUCCESS for step in history):
         score -= 10
     tool_usage = set(step.receiver for step in history)
     score += len(tool_usage)

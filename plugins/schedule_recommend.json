@@ -1,5 +1,7 @@
 {
-    "request": "string",
-    "city": "string",
-    "weather": "string"
+    "content": "string",
+    "metadata": {
+        "city": "string",
+        "weather": "string"
+    }
 }
