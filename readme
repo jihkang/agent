@@ -21,16 +21,6 @@ python3 init.py
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 
-저는 ReAct 패턴의 도구 기반 추론 구조를 참조하되, 이를 멀티 에이전트 아키텍처 위에서 ToolSelectorAgent, ExecutionAgent, PluginManager 등의 컴포넌트로 분리하여 구현했습니다. 따라서 ReAct 기반의 Tool-Driven 시스템을 에이전트 중심으로 확장한 구조라고 볼 수 있습니다.
-
-시스템은 Router 기반의 오케스트레이션 Agent-to-Agent 구조로 설계하였으며, 모든 Agent는 Agent 인터페이스를 상속받고, on_event() 메서드를 비동기 제너레이터로 구현하여 메시지를 스트리밍 방식으로 처리합니다.
-
-플러그인은 PluginManager가 런타임에 동적으로 스캔 및 로딩하며, 플러그인 레지스트리 패턴 기반으로 작동합니다. Peer-to-Peer A2A 구조와 달리, 중앙 Router를 통해 공통 메시지 스키마(AgentMessage, MCPRequest)로 통신 흐름을 강제함으로써 구조의 일관성과 유연성을 확보했습니다.
-
-특히 PlanningAgent는 MCTSPlanner와 PlanningState를 통해 다양한 도구 조합과 실행 순서를 탐색하며, 최적의 메시지 플랜을 도출합니다. 이는 단일 호출 기반 ReAct 구조를 계획 기반 멀티 도구 실행 구조로 확장한 것이며, LLM은 ToolSelectorAgent에서는 도구 선택 추론에, PlanningAgent에서는 계획 수립 보조에 사용됩니다.
-
-결론적으로, 레지스트리 기반 플러그인 호출 구조를 채택함으로써 LLM의 불확실한 응답을 다루면서도 실행 경로를 명확히 추적 가능하고, 파일만 추가하면 되는 확장성과 디버깅 편의성을 추구하였습니다..
-
 클래스 다이어그램 
 https://www.mermaidchart.com/app/projects/31cca446-e543-4e89-8995-4a3a09d8b42b/diagrams/753fb72c-61c3-4674-8b3f-e17549d3da1c/version/v0.1/edit
 
