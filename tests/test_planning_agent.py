@@ -1,8 +1,9 @@
-from agent.planning_agent_mcts import PlanningState
 import pytest
+from agent.planning_agent_mcts import PlanningState
 from agent.planning_agent import PlanningAgent
 from scheme.a2a_message import AgentMessage
 from scheme.mcp import MCPRequest, MCPRequestMessage
+from utils.constant import SUCCESS
 
 # Step 1. 테스트용 가짜 결과 메시지
 fake_plan = [
@@ -12,10 +13,12 @@ fake_plan = [
         receiver="ToolSelectorAgent",
         dag=-1,
         payload=[
-            MCPRequest[str](content=[
-                MCPRequestMessage[str](content="step 1: use search tool")
-            ])
-        ]
+            MCPRequest[dict](content=[
+                MCPRequestMessage[dict](content="step 1: use search tool", metadata={})],
+                stop_reason=SUCCESS
+            )
+        ],
+        stop_reason=SUCCESS,
     ),
     AgentMessage(
         id=1,
@@ -23,10 +26,14 @@ fake_plan = [
         receiver="user",
         dag=0,
         payload=[
-            MCPRequest[str](content=[
-                MCPRequestMessage[str](content="final step: return to user")
-            ])
-        ]
+            MCPRequest[dict](
+                content=[
+                    MCPRequestMessage[dict](content="final step: return to user", metadata={})
+                ],
+                stop_reason=SUCCESS
+            )
+        ],
+        stop_reason=SUCCESS,
     )
 ]
 
@@ -66,10 +73,14 @@ async def test_planning_agent_generates_steps():
         sender="user",
         receiver="PlanningAgent",
         payload=[
-            MCPRequest[str](content=[
-                MCPRequestMessage[str](content="make a plan to search the weather")
-            ])
-        ]
+            MCPRequest[dict](
+                content=[
+                    MCPRequestMessage[dict](content="make a plan to search the weather", metadata={})
+                ],
+                stop_reason=SUCCESS
+            )
+        ],
+        stop_reason=SUCCESS
     )
 
     results = []

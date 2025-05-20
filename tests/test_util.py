@@ -2,7 +2,7 @@ import pytest
 from agent.planning_agent import PlanningAgent
 from scheme.a2a_message import AgentMessage
 from scheme.mcp import MCPRequest, MCPRequestMessage
-from utils.util import merge_agent_messages
+from utils.util import merge_metadata_only
 
 
 def test_merge_agent_message():
@@ -17,7 +17,8 @@ def test_merge_agent_message():
                 content=[
                     MCPRequestMessage(
                         role="user",
-                        content={"city": "Seoul", "temp": 22}
+                        content="city weather result",
+                        metadata={"city": "Seoul", "temp": 22}
                     )
                 ]
             )
@@ -34,14 +35,15 @@ def test_merge_agent_message():
                 content=[
                     MCPRequestMessage(
                         type="result",
-                        content={"weather": "Clear"}
+                        content="result is",
+                        metadata={"weather": "Clear"},
                     )
                 ]
             )
         ]
     )
 
-    merged_msg = merge_agent_messages(msg1, msg2)
+    merged_msg = merge_metadata_only(msg1, msg2)
 
     assert merged_msg.sender == "user"
     assert merged_msg.receiver == "PlanningAgent"

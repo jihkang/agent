@@ -46,7 +46,7 @@ class WeatherToolAgent(BaseAgent):
 
             if self.api_key == "":
                 # Fallback response
-                weather = "Clear"
+                weather = "rain"
                 temp = "22"
                 content = {
                     "content": f"The current weather in {city} is '{weather}', with a temperature of {temp}°C.",
