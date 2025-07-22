@@ -1,4 +1,39 @@
-How to use 
+# 🧠 AI Multi-Agent System
+
+다중 에이전트 기반의 AI 통신 시스템입니다.  
+사용자의 자연어 명령을 기반으로 Planning → Tool Selection → Execution 단계를 거쳐 응답을 생성하는 구조로 설계되었습니다.
+
+## 📌 Overview
+
+- FastAPI + WebSocket 기반의 비동기 스트리밍 서버
+- 역할 분리된 세 가지 에이전트 구성: `PlanningAgent`, `ToolAgent`, `ExecutionAgent`
+- Google Gemini API 및 Llama LLM 연동을 통한 자연어 처리 파이프라인 구현
+- 메시지 큐(deque) 및 상태 컨텍스트 공유 구조 설계
+
+## ⚙️ Tech Stack
+
+- **Language:** Python 3.11  
+- **Web Framework:** FastAPI  
+- **Communication:** WebSocket, asyncio, aiohttp  
+- **LLM Integration:** Google Gemini API, Llama  
+- **Data Structure:** deque (queue), dict (context)
+
+## 🚀 Key Features
+
+- `PlanningAgent`: 입력된 메시지를 목적/도구 단위로 분석
+- `ToolAgent`: 도구 선택 및 입력값 생성
+- `ExecutionAgent`: 외부 API 호출 및 결과 반환
+- FastAPI + WebSocket 기반의 비동기 스트리밍 처리
+- 메시지 흐름 기록 및 상태 공유 구조 구축
+
+## 🧪 How to Run
+
+```bash
+# 패키지 설치
+pip install -r requirements.txt
+
+# 서버 실행
+uvicorn main:app --reload
 
 
 .env 파일을 생성 
