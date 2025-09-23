@@ -21,9 +21,7 @@ class ExecutionAgent(Agent):
                 content_list = payload.content
                 if not plugin_name:
                     raise ValueError("Plugin이 선택되지 않았습니다.")
-                print("==========================================")
-                print(f"[ExecutionAgent]   {content_list}, {plugin_name} {payload}")
-                print("==========================================")
+
                 # 플러그인 실행
                 for plan in content_list:
                     plugin_response = await self.plugin_manager.run(plugin_name, plan)
@@ -49,9 +47,6 @@ class ExecutionAgent(Agent):
                         continue             
                         
                     final_payload = plugin_response  # 정상 Response라면 그대로
-                    print("[ExecutionReturn]===============")
-                    print(final_payload)
-                    print("================================")
                     yield AgentMessage(
                             origin_request=message.origin_request,
                             sender="ExecutionAgent",
