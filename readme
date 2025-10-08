@@ -1,1 +1,62 @@
-.
+# 🧠 AI Multi-Agent System
+
+다중 에이전트 기반의 AI 통신 시스템입니다.  
+사용자의 자연어 명령을 기반으로 Planning → Tool Selection → Execution 단계를 거쳐 응답을 생성하는 구조로 설계되었습니다.
+
+## 📌 Overview
+
+- FastAPI + WebSocket 기반의 비동기 스트리밍 서버
+- 역할 분리된 세 가지 에이전트 구성: `PlanningAgent`, `ToolAgent`, `ExecutionAgent`
+- Google Gemini API 및 Llama LLM 연동을 통한 자연어 처리 파이프라인 구현
+- 메시지 큐(deque) 및 상태 컨텍스트 공유 구조 설계
+
+## ⚙️ Tech Stack
+
+- **Language:** Python 3.11  
+- **Web Framework:** FastAPI  
+- **Communication:** WebSocket, asyncio, aiohttp  
+- **LLM Integration:** Google Gemini API, Llama  
+- **Data Structure:** deque (queue), dict (context)
+
+## 🚀 Key Features
+
+- `PlanningAgent`: 입력된 메시지를 목적/도구 단위로 분석
+- `ToolAgent`: 도구 선택 및 입력값 생성
+- `ExecutionAgent`: 외부 API 호출 및 결과 반환
+- FastAPI + WebSocket 기반의 비동기 스트리밍 처리
+- 메시지 흐름 기록 및 상태 공유 구조 구축
+
+## 🧪 How to Run
+
+```bash
+# 패키지 설치
+pip install -r requirements.txt
+
+# 서버 실행
+uvicorn main:app --reload
+
+
+.env 파일을 생성 
+GOOGLE_API_KEY="YOUR KEY"
+LOCAL_MODEL=TheBloke/Llama-2-13B-chat-GGUF
+LOCAL_MODEL_NAME=llama-2-13b-chat.Q4_K_M.gguf
+LOCAL_DIR=data/models
+OPENWEATHER_API_KEY="YOUR KEY"
+
+가상환경에서 실행한다면 
+
+poetry install 
+poetry run python3 init.py 
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+만약 파이썬 상황이라면 
+
+pip install -r requirements.txt
+python3 init.py 
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+
+클래스 다이어그램 
+https://www.mermaidchart.com/app/projects/31cca446-e543-4e89-8995-4a3a09d8b42b/diagrams/753fb72c-61c3-4674-8b3f-e17549d3da1c/version/v0.1/edit
+
+![img]https://www.mermaidchart.com/raw/753fb72c-61c3-4674-8b3f-e17549d3da1c?theme=light&version=v0.1&format=svg
