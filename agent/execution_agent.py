@@ -32,17 +32,12 @@ class ExecutionAgent(Agent):
                         print(plugin_response.stop_reason)
                         request_message = AgentMessage(
                             sender = "ExecutionAgent",
-                            receiver = "ToolSelectorAgent",
+                            receiver = "ValidationAgent",
                             id = message.id,
-                            payload = MCPRequest[dict](
-                                content=[MCPRequestMessage[dict](
-                                    content = plan.content,
-                                    metadata = {},
-                                )],
-                                selected_tool = plugin_name,
-                            ),
+                            payload = [plugin_response],
                             origin_request=message.origin_request,
-                            dag = message.id,
+                            dag = message.dag,
+                            retries=message.retries,
                             stop_reason=plugin_response.stop_reason,
                         )
                         yield request_message
