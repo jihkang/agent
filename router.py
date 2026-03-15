@@ -11,6 +11,7 @@ from scheme.mcp import MCPRequest, MCPRequestMessage
 from agent.tool_agent import ToolSelectorAgent
 from agent.planning_agent import PlanningAgent
 from agent.execution_agent import ExecutionAgent
+from agent.validation_agent import ValidationAgent
 from plugin.manager import PluginManager
 from utils.constant import FAIL, MAX_RETRIES, SPECIAL_ROUTER, SUCCESS
 from utils.logging import setup_logger
@@ -22,6 +23,7 @@ class Router:
             "PlanningAgent": PlanningAgent(),
             "ToolSelectorAgent": ToolSelectorAgent(plugin_manager),
             "ExecutionAgent": ExecutionAgent(plugin_manager),
+            "ValidationAgent": ValidationAgent(),
         }
         self.logger = setup_logger("Router")
         self.sessions: Dict[str, PlanningState] = {}
@@ -78,7 +80,7 @@ class Router:
             print(stop_reason, plan.payload)
             if stop_reason == FAIL:
                 return
-            
+
             state.set_result(plan.id, plan)
             
             if stop_reason == SUCCESS:
@@ -87,6 +89,16 @@ class Router:
                 if need_more_msg is not None:
                     plan_queue.appendleft(need_more_msg)
                     state.pop_result(msg.id, need_more_msg)
+            return
+
+        if plan.sender == "ValidationAgent":
+            if plan.stop_reason == FAIL:
+                return
+
+            if plan.receiver in SPECIAL_ROUTER:
+                return
+
+            plan_queue.appendleft(plan)
             return
         else:
             state.set_history(plan)
